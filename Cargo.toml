@@ -4,3 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+lazy_static = { version = "1", features = ["spin_no_std"] }
+spin = "0.10.0"
+
+[features]
+default = ["uart_polling"] # 默认使用轮询
+uart_polling = []
+uart_interrupt = []
