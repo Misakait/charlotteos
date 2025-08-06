@@ -1,0 +1,27 @@
+# 1. 将我们的代码放入 .text.entry 段
+#    我们在 linker.ld 中特意将这个段放在了最前面，确保它是程序的入口。
+.section .text.entry
+
+# 2. 将 _start 符号声明为全局可见
+#    这样链接器才能根据 linker.ld 中的 ENTRY(_start) 找到它。
+.globl _start
+
+# 3. 入口点 _start 的具体实现
+_start:
+    # la: Load Address (加载地址) 指令
+    # sp: Stack Pointer (栈指针) 寄存器
+    # end: 这是我们在 linker.ld 中定义的符号，代表内核镜像的结束地址。
+    #
+    # 这条指令的含义是：将 end 符号的地址加载到 sp 寄存器中。
+    # 这样，我们的栈就从内核代码的末尾处开始，向上生长。
+    # 这是整个内核能跑起来的最关键一步！
+  la sp, end
+
+    # call: 调用一个函数
+    # rust_main: 这是我们 Rust 代码中的主函数。
+    #
+    # 当 call 指令执行时，CPU 会做两件事：
+    # 1. 将下一条指令的地址（返回地址）存入 ra (Return Address) 寄存器。
+    # 2. 跳转到 rust_main 函数的地址去执行。
+  call rust_main
+
