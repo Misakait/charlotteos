@@ -15,3 +15,10 @@ runner = [
     "-kernel", 
     # Cargo 会自动在这里追加内核文件路径
 ]
+# 添加或修改这个 [alias] 段
+[alias]
+# 为 `build --release` 创建一个快捷方式 `b`
+b = "build --release"
+
+# 为 `run --release` 创建一个快捷方式 `r`
+r = "run --release"

@@ -13,4 +13,3 @@ mod uart_polling;
 #[cfg(feature = "uart_polling")]
 pub use uart_polling::UartPolling as Uart;
 
-// ... 其他驱动实现 ...

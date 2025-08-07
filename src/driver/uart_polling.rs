@@ -5,33 +5,8 @@
 use super::SerialPort;
 
 // 从 bsp 获取基地址
-use crate::bsp::qemu_virt::UART_BASE; 
+use crate::bsp::qemu_virt::{DLL, DLM, FCR, IER, LCR, LSR, RHR, THR, UART_BASE};
 use core::ptr::{read_volatile, write_volatile};
-
-const RHR: usize = 0; //Receive Holding Register (read mode)
-// Transmit Holding Register (write mode)
-const THR :usize = 0;
-// LSB of Divisor Latch (write mode)
-const DLL :usize = 0;
-// Interrupt Enable Register (write mode)
-const IER :usize = 1;
-// MSB of Divisor Latch (write mode)
-const DLM :usize = 1;
-// FIFO Control Register (write mode)
-const FCR :usize = 2;
-// Interrupt Status Register (read mode)
-const ISR :usize = 2;
-// Line Control Register
-const LCR :usize = 3;
-// Modem Control Register
-const MCR :usize = 4;
-// Line Status Register
-const LSR :usize = 5;
-// Modem Status Register
-const MSR :usize = 6;
-// ScratchPad Register
-const SPR :usize = 7;
-
 
 pub struct UartPolling {
     base_address: usize,
@@ -40,7 +15,7 @@ pub struct UartPolling {
 impl UartPolling {
     pub fn new() -> Self {
         Self {
-            base_address: UART_BASE,
+             base_address: UART_BASE
         }
     }
 }
