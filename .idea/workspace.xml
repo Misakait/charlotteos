@@ -11,19 +11,30 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="434d2ccd-04f1-44a6-b15c-612660a1bbae" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/.cargo/config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/.cargo/config.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/driver/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/driver/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/driver/uart_polling.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/driver/uart_polling.rs" afterDir="false" />
+    <list default="true" id="434d2ccd-04f1-44a6-b15c-612660a1bbae" name="更改" comment="fix: 整理好代码结构,保持高内聚">
+      <change afterPath="$PROJECT_DIR$/src/mm/buddy.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/mm/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/system.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/os.ld" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bsp/qemu_virt.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/bsp/qemu_virt.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lang_items.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lang_items.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/linker.ld" beforeDir="false" afterPath="$PROJECT_DIR$/src/linker.ld" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:dev" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:release" />
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Rust File" />
+      </list>
+    </option>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
@@ -41,6 +52,7 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Cargo.Run charlotte_os.executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
@@ -52,6 +64,7 @@
     "nodejs_package_manager_path": "npm",
     "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
     "org.rust.first.attach.projects": "true",
+    "settings.editor.selected.configurable": "preferences.fileTypes",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -62,20 +75,23 @@
       <window_info id="Backup and Sync History" />
       <window_info id="Commit_Guest" show_stripe_button="false" />
       <window_info id="Pull Requests" />
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.19949496" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.16198008" />
       <window_info id="Commit" order="1" weight="0.19949496" />
       <window_info id="Structure" order="2" side_tool="true" weight="0.25" />
       <window_info anchor="bottom" id="Database Changes" />
       <window_info anchor="bottom" id="TypeScript" />
-      <window_info anchor="bottom" id="Build" />
       <window_info anchor="bottom" id="TODO" />
+      <window_info anchor="bottom" id="Messages" />
       <window_info anchor="bottom" id="File Transfer" />
-      <window_info anchor="bottom" id="Version Control" order="0" />
+      <window_info anchor="bottom" id="Version Control" order="0" weight="0.31270537" />
       <window_info anchor="bottom" id="Problems" order="1" />
       <window_info anchor="bottom" id="Problems View" order="2" />
       <window_info anchor="bottom" id="Terminal" order="3" />
       <window_info anchor="bottom" id="Services" order="4" />
       <window_info anchor="bottom" id="GitHub Copilot MCP Log" order="5" />
+      <window_info anchor="bottom" id="Build" order="6" weight="0.31270537" />
+      <window_info active="true" anchor="bottom" id="Run" order="7" visible="true" weight="0.31270537" />
+      <window_info anchor="bottom" id="Debug" order="8" weight="0.31270537" />
       <window_info anchor="right" id="Coverage" side_tool="true" />
       <window_info anchor="right" content_ui="combo" id="Notifications" order="0" weight="0.25" />
       <window_info anchor="right" id="AIAssistant" order="1" weight="0.25" />
@@ -137,12 +153,36 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1754542228455</updated>
-      <workItem from="1754542230594" duration="2931000" />
+      <workItem from="1754542230594" duration="19515000" />
     </task>
+    <task id="LOCAL-00001" summary="fix: 整理好代码结构,保持高内聚">
+      <option name="closed" value="true" />
+      <created>1754583020067</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1754583020067</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="fix: 整理好代码结构,保持高内聚" />
+    <option name="LAST_COMMIT_MESSAGE" value="fix: 整理好代码结构,保持高内聚" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

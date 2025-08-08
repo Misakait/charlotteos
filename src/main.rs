@@ -1,10 +1,14 @@
 #![no_std]
 #![no_main]
+extern crate alloc;
+
 // lazy_static 会用到这个特性
 mod driver;
 mod bsp;
 mod lang_items;
 mod console;
+mod mm;
+mod system;
 
 // use lang_items::*;
 // 使用 core::arch::global_asm! 宏来包含整个汇编文件
@@ -12,6 +16,10 @@ use core::arch::global_asm;
 use driver::{SerialPort, Uart}; // 引入 Trait 和统一的 Uart 类型
 use lazy_static::lazy_static;
 use spin::Mutex;
+use crate::bsp::qemu_virt::QemuVirt;
+use crate::console::_print;
+use crate::mm::{init_heap, LockedAllocator};
+use crate::system::SystemControl;
 
 // 这行代码会把 entry.S 的内容直接嵌入到编译流程中
 global_asm!(include_str!("entry.S"));
@@ -29,7 +37,11 @@ lazy_static! {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rust_main(){
+pub extern "C" fn rust_main() {
+    println!("Initializing heap...");
+    init_heap();
+    println!("Heap initialized.");
     println!("Hello from Charlotte OS!");
-    loop{};    
+    let platform = QemuVirt;
+    platform.shutdown();
 }
