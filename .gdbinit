@@ -1,5 +1,5 @@
 # .gdbinit
-
+source ~/.gdbinit.1
 # 加载内核文件以获取符号信息
 file target/riscv64gc-unknown-none-elf/release/charlotte_os
 

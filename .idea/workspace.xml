@@ -11,16 +11,14 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="434d2ccd-04f1-44a6-b15c-612660a1bbae" name="更改" comment="fix: 整理好代码结构,保持高内聚">
-      <change afterPath="$PROJECT_DIR$/src/mm/buddy.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/mm/mod.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/system.rs" afterDir="false" />
+    <list default="true" id="434d2ccd-04f1-44a6-b15c-612660a1bbae" name="更改" comment="feat: 1.初步建立内存分配系统&#10;      2.完成qemu关机系统&#10;      3.更好的panic">
+      <change beforePath="$PROJECT_DIR$/.cargo/config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/.cargo/config.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gdbinit" beforeDir="false" afterPath="$PROJECT_DIR$/.gdbinit" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/os.ld" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bsp/qemu_virt.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/bsp/qemu_virt.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/lang_items.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lang_items.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/linker.ld" beforeDir="false" afterPath="$PROJECT_DIR$/src/linker.ld" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mm/buddy.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/mm/buddy.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mm/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/mm/mod.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -38,13 +36,19 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="file://$PROJECT_DIR$/../.cache/JetBrains/RustRover2025.2/intellij-rust/stdlib-local-copy/1.91.0-nightly-e403c83176154d07cc475bf0a42af658c00124a5/library/core/src/sync/atomic.rs" root0="SKIP_INSPECTION" />
+    <setting file="file://$PROJECT_DIR$/../.cache/JetBrains/RustRover2025.2/intellij-rust/stdlib-local-copy/1.91.0-nightly-e403c83176154d07cc475bf0a42af658c00124a5/library/core/src/sync/exclusive.rs" root0="SKIP_INSPECTION" />
+    <setting file="file://$PROJECT_DIR$/../.cache/JetBrains/RustRover2025.2/intellij-rust/stdlib-local-copy/1.91.0-nightly-e403c83176154d07cc475bf0a42af658c00124a5/library/std/src/sync/lazy_lock.rs" root0="SKIP_INSPECTION" />
+    <setting file="file://$PROJECT_DIR$/../.cache/JetBrains/RustRover2025.2/intellij-rust/stdlib-local-copy/1.91.0-nightly-e403c83176154d07cc475bf0a42af658c00124a5/library/std/src/sync/once_lock.rs" root0="SKIP_INSPECTION" />
+  </component>
   <component name="MacroExpansionManager">
     <option name="directoryName" value="vp2k1W9M" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "customColor": "",
-  "associatedIndex": 0
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 0
+}</component>
   <component name="ProjectId" id="30wclXSvywG4egqJH2OIHJkwGin" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -64,7 +68,7 @@
     "nodejs_package_manager_path": "npm",
     "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
     "org.rust.first.attach.projects": "true",
-    "settings.editor.selected.configurable": "preferences.fileTypes",
+    "settings.editor.selected.configurable": "language.rust.cargo.check",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -75,8 +79,8 @@
       <window_info id="Backup and Sync History" />
       <window_info id="Commit_Guest" show_stripe_button="false" />
       <window_info id="Pull Requests" />
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.16198008" />
-      <window_info id="Commit" order="1" weight="0.19949496" />
+      <window_info content_ui="combo" id="Project" order="0" weight="0.16198008" />
+      <window_info active="true" id="Commit" order="1" visible="true" weight="0.16198008" />
       <window_info id="Structure" order="2" side_tool="true" weight="0.25" />
       <window_info anchor="bottom" id="Database Changes" />
       <window_info anchor="bottom" id="TypeScript" />
@@ -85,21 +89,21 @@
       <window_info anchor="bottom" id="File Transfer" />
       <window_info anchor="bottom" id="Version Control" order="0" weight="0.31270537" />
       <window_info anchor="bottom" id="Problems" order="1" />
-      <window_info anchor="bottom" id="Problems View" order="2" />
+      <window_info anchor="bottom" id="Problems View" order="2" weight="0.33023" />
       <window_info anchor="bottom" id="Terminal" order="3" />
       <window_info anchor="bottom" id="Services" order="4" />
       <window_info anchor="bottom" id="GitHub Copilot MCP Log" order="5" />
-      <window_info anchor="bottom" id="Build" order="6" weight="0.31270537" />
-      <window_info active="true" anchor="bottom" id="Run" order="7" visible="true" weight="0.31270537" />
+      <window_info anchor="bottom" id="Build" order="6" weight="0.33023" />
+      <window_info anchor="bottom" id="Run" order="7" weight="0.33023" />
       <window_info anchor="bottom" id="Debug" order="8" weight="0.31270537" />
       <window_info anchor="right" id="Coverage" side_tool="true" />
       <window_info anchor="right" content_ui="combo" id="Notifications" order="0" weight="0.25" />
       <window_info anchor="right" id="AIAssistant" order="1" weight="0.25" />
-      <window_info anchor="right" id="Database" order="2" weight="0.25" />
-      <window_info anchor="right" id="Gradle" order="3" weight="0.25" />
-      <window_info anchor="right" id="Maven" order="4" weight="0.25" />
-      <window_info anchor="right" id="Cargo" order="5" weight="0.2" />
-      <window_info anchor="right" id="RustCargo" order="6" weight="0.2" />
+      <window_info anchor="right" id="Gradle" order="2" weight="0.25" />
+      <window_info anchor="right" id="Maven" order="3" weight="0.25" />
+      <window_info anchor="right" id="Cargo" order="4" weight="0.2" />
+      <window_info anchor="right" id="RustCargo" order="5" weight="0.2" />
+      <window_info anchor="right" id="Database" order="6" weight="0.25" />
       <window_info anchor="right" id="Code Search" order="7" />
       <window_info anchor="right" id="github.copilotToolWindow" order="8" />
       <window_info anchor="right" id="GitHub Copilot Chat" order="9" />
@@ -153,7 +157,9 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1754542228455</updated>
-      <workItem from="1754542230594" duration="19515000" />
+      <workItem from="1754542230594" duration="31598000" />
+      <workItem from="1754986506625" duration="4363000" />
+      <workItem from="1755582015800" duration="10118000" />
     </task>
     <task id="LOCAL-00001" summary="fix: 整理好代码结构,保持高内聚">
       <option name="closed" value="true" />
@@ -163,7 +169,15 @@
       <option name="project" value="LOCAL" />
       <updated>1754583020067</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="feat: 1.初步建立内存分配系统&#10;      2.完成qemu关机系统&#10;      3.更好的panic">
+      <option name="closed" value="true" />
+      <created>1754637782753</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1754637782753</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -182,7 +196,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="fix: 整理好代码结构,保持高内聚" />
-    <option name="LAST_COMMIT_MESSAGE" value="fix: 整理好代码结构,保持高内聚" />
+    <MESSAGE value="feat: 1.初步建立内存分配系统&#10;      2.完成qemu关机系统&#10;      3.更好的panic" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: 1.初步建立内存分配系统&#10;      2.完成qemu关机系统&#10;      3.更好的panic" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

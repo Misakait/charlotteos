@@ -10,6 +10,7 @@ mod console;
 mod mm;
 mod system;
 
+use alloc::vec::Vec;
 // use lang_items::*;
 // 使用 core::arch::global_asm! 宏来包含整个汇编文件
 use core::arch::global_asm;
@@ -41,6 +42,8 @@ pub extern "C" fn rust_main() {
     println!("Initializing heap...");
     init_heap();
     println!("Heap initialized.");
+    let vec = Vec::from([1, 2, 3]);
+    println!("vec 0: {}", vec[0]);
     println!("Hello from Charlotte OS!");
     let platform = QemuVirt;
     platform.shutdown();

@@ -9,7 +9,7 @@ use spin::Mutex;
 use buddy::BuddySystemAllocator;
 use crate::println;
 
-const PAGE_SIZE: usize = 4096; // 4KB
+pub const PAGE_SIZE: usize = 4096; // 4KB
 
 // 定义一个带锁的分配器结构体
 pub struct LockedAllocator(Mutex<BuddySystemAllocator>);
@@ -51,32 +51,7 @@ unsafe extern "C" {
 }
 /// 初始化堆分配器
 pub fn init_heap() {
-
-    //
-    // // 1. 获取原始的堆边界
-    // let heap_start_raw = unsafe { &_heap_start as *const _ as usize };
-    // let heap_end_raw = unsafe { &_memory_end as *const _ as usize };
-    //
-    // // 2. 对齐堆的起始地址
-    // //    `next_multiple_of` 可以将地址向上对齐到最近的页面边界
-    // let heap_start = heap_start_raw.next_multiple_of(PAGE_SIZE);
-    //
-    // // 3. 计算对齐后可用的堆大小
-    // let heap_size_aligned = heap_end_raw - heap_start;
-    //
-    // // 4. 从对齐后的堆空间中，计算出能容纳的最大 2 次幂大小
-    // //    `log2` 可以帮助我们找到最大的阶，`1 << order` 就是最终的大小
-    // let max_order_size = if heap_size_aligned == 0 { 0 } else { 1 << heap_size_aligned.ilog2() };
-    //
-    // println!("Raw Heap:   [0x{:x} -> 0x{:x}]", heap_start_raw, heap_end_raw);
-    // println!("Aligned Heap: [0x{:x} -> 0x{:x}], size: {} bytes", heap_start, heap_end_raw, heap_size_aligned);
-    // println!("Buddy System will manage the largest power-of-2 block: {} bytes", max_order_size);
-    // let heap_end = heap_start + max_order_size;
-    // // 5. 将这块完美的、大小为 2 次幂的内存块交给分配器
-    // unsafe {
-    //     HEAP_ALLOCATOR.init(heap_start, heap_end);
-    // }
-
+    
     // 获取原始的堆边界
     let heap_start_raw = unsafe { &_heap_start as *const _ as usize };
     let heap_end_raw = unsafe { &_memory_end as *const _ as usize };

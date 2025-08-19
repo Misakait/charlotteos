@@ -22,3 +22,5 @@ b = "build --release"
 
 # 为 `run --release` 创建一个快捷方式 `r`
 r = "run --release"
+[profile.release]
+debug = true # 强制在 release 版本中也加入完整的调试符号
