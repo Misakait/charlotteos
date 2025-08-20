@@ -11,7 +11,10 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="434d2ccd-04f1-44a6-b15c-612660a1bbae" name="更改" comment="feat: 完成BuddySystem内存分配系统">
+    <list default="true" id="434d2ccd-04f1-44a6-b15c-612660a1bbae" name="更改" comment="feat: 清零bss段">
+      <change afterPath="$PROJECT_DIR$/src/task/context.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/task/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/task/tcp.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
     </list>
@@ -82,14 +85,14 @@
       <window_info anchor="bottom" id="TODO" />
       <window_info anchor="bottom" id="Messages" />
       <window_info anchor="bottom" id="File Transfer" />
-      <window_info anchor="bottom" id="Version Control" order="0" weight="0.33023" />
+      <window_info active="true" anchor="bottom" id="Version Control" order="0" visible="true" weight="0.33023" />
       <window_info anchor="bottom" id="Problems" order="1" />
       <window_info anchor="bottom" id="Problems View" order="2" weight="0.33023" />
       <window_info anchor="bottom" id="Terminal" order="3" />
       <window_info anchor="bottom" id="Services" order="4" />
       <window_info anchor="bottom" id="GitHub Copilot MCP Log" order="5" />
       <window_info anchor="bottom" id="Build" order="6" weight="0.33023" />
-      <window_info active="true" anchor="bottom" id="Run" order="7" visible="true" weight="0.33023" />
+      <window_info anchor="bottom" id="Run" order="7" weight="0.33023" />
       <window_info anchor="bottom" id="Debug" order="8" weight="0.31270537" />
       <window_info anchor="right" id="Coverage" side_tool="true" />
       <window_info anchor="right" content_ui="combo" id="Notifications" order="0" weight="0.25" />
@@ -154,7 +157,7 @@
       <updated>1754542228455</updated>
       <workItem from="1754542230594" duration="31598000" />
       <workItem from="1754986506625" duration="4363000" />
-      <workItem from="1755582015800" duration="14998000" />
+      <workItem from="1755582015800" duration="17668000" />
     </task>
     <task id="LOCAL-00001" summary="fix: 整理好代码结构,保持高内聚">
       <option name="closed" value="true" />
@@ -180,7 +183,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755599377465</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="feat: 清零bss段">
+      <option name="closed" value="true" />
+      <created>1755689531644</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1755689531644</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -201,7 +212,8 @@
     <MESSAGE value="fix: 整理好代码结构,保持高内聚" />
     <MESSAGE value="feat: 1.初步建立内存分配系统&#10;      2.完成qemu关机系统&#10;      3.更好的panic" />
     <MESSAGE value="feat: 完成BuddySystem内存分配系统" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: 完成BuddySystem内存分配系统" />
+    <MESSAGE value="feat: 清零bss段" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: 清零bss段" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

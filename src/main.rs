@@ -9,6 +9,7 @@ mod lang_items;
 mod console;
 mod mm;
 mod system;
+mod task;
 
 use alloc::vec::Vec;
 // use lang_items::*;
