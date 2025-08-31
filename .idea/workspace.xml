@@ -11,12 +11,11 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="434d2ccd-04f1-44a6-b15c-612660a1bbae" name="更改" comment="feat: 清零bss段">
-      <change afterPath="$PROJECT_DIR$/src/task/context.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/task/mod.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/task/tcp.rs" afterDir="false" />
+    <list default="true" id="434d2ccd-04f1-44a6-b15c-612660a1bbae" name="更改" comment="feat(arch): Define Task Context and TCB data structures&#10;&#10;This commit introduces the foundational data structures required for&#10;task management.&#10;&#10;- Create `TaskContext` struct in `src/task/context.rs` to hold the&#10;  callee-saved registers (`ra`, `sp`, `s0-s11`), marked with `#[repr(C)]`.&#10;- Create `TaskControlBlock` (TCB) struct in `src/task/tcb.rs` which&#10;  contains the task's context, ID, and status.&#10;- Define a `TaskStatus` enum (`Ready`, `Running`, `Terminated`) for the TCB.&#10;- Create a new top-level module `task` in `main.rs`.&#10;&#10;At this stage, these structures are defined but not yet used. The kernel&#10;boots and functions as before.">
+      <change afterPath="$PROJECT_DIR$/src/task/switch.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/task/context.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/task/context.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/task/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/task/mod.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -59,6 +58,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.rust.reset.selective.auto.import": "true",
+    "git-widget-placeholder": "master",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -77,7 +77,7 @@
       <window_info id="Backup and Sync History" />
       <window_info id="Commit_Guest" show_stripe_button="false" />
       <window_info id="Pull Requests" />
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.16198008" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.1619769" />
       <window_info id="Commit" order="1" weight="0.16198008" />
       <window_info id="Structure" order="2" side_tool="true" weight="0.25" />
       <window_info anchor="bottom" id="Database Changes" />
@@ -85,7 +85,7 @@
       <window_info anchor="bottom" id="TODO" />
       <window_info anchor="bottom" id="Messages" />
       <window_info anchor="bottom" id="File Transfer" />
-      <window_info active="true" anchor="bottom" id="Version Control" order="0" visible="true" weight="0.33023" />
+      <window_info anchor="bottom" id="Version Control" order="0" weight="0.33023" />
       <window_info anchor="bottom" id="Problems" order="1" />
       <window_info anchor="bottom" id="Problems View" order="2" weight="0.33023" />
       <window_info anchor="bottom" id="Terminal" order="3" />
@@ -157,7 +157,8 @@
       <updated>1754542228455</updated>
       <workItem from="1754542230594" duration="31598000" />
       <workItem from="1754986506625" duration="4363000" />
-      <workItem from="1755582015800" duration="17668000" />
+      <workItem from="1755582015800" duration="20132000" />
+      <workItem from="1756636185683" duration="709000" />
     </task>
     <task id="LOCAL-00001" summary="fix: 整理好代码结构,保持高内聚">
       <option name="closed" value="true" />
@@ -191,7 +192,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755689531644</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="feat(arch): Define Task Context and TCB data structures&#10;&#10;This commit introduces the foundational data structures required for&#10;task management.&#10;&#10;- Create `TaskContext` struct in `src/task/context.rs` to hold the&#10;  callee-saved registers (`ra`, `sp`, `s0-s11`), marked with `#[repr(C)]`.&#10;- Create `TaskControlBlock` (TCB) struct in `src/task/tcb.rs` which&#10;  contains the task's context, ID, and status.&#10;- Define a `TaskStatus` enum (`Ready`, `Running`, `Terminated`) for the TCB.&#10;- Create a new top-level module `task` in `main.rs`.&#10;&#10;At this stage, these structures are defined but not yet used. The kernel&#10;boots and functions as before.">
+      <option name="closed" value="true" />
+      <created>1755708721986</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1755708721986</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -213,7 +222,8 @@
     <MESSAGE value="feat: 1.初步建立内存分配系统&#10;      2.完成qemu关机系统&#10;      3.更好的panic" />
     <MESSAGE value="feat: 完成BuddySystem内存分配系统" />
     <MESSAGE value="feat: 清零bss段" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: 清零bss段" />
+    <MESSAGE value="feat(arch): Define Task Context and TCB data structures&#10;&#10;This commit introduces the foundational data structures required for&#10;task management.&#10;&#10;- Create `TaskContext` struct in `src/task/context.rs` to hold the&#10;  callee-saved registers (`ra`, `sp`, `s0-s11`), marked with `#[repr(C)]`.&#10;- Create `TaskControlBlock` (TCB) struct in `src/task/tcb.rs` which&#10;  contains the task's context, ID, and status.&#10;- Define a `TaskStatus` enum (`Ready`, `Running`, `Terminated`) for the TCB.&#10;- Create a new top-level module `task` in `main.rs`.&#10;&#10;At this stage, these structures are defined but not yet used. The kernel&#10;boots and functions as before." />
+    <option name="LAST_COMMIT_MESSAGE" value="feat(arch): Define Task Context and TCB data structures&#10;&#10;This commit introduces the foundational data structures required for&#10;task management.&#10;&#10;- Create `TaskContext` struct in `src/task/context.rs` to hold the&#10;  callee-saved registers (`ra`, `sp`, `s0-s11`), marked with `#[repr(C)]`.&#10;- Create `TaskControlBlock` (TCB) struct in `src/task/tcb.rs` which&#10;  contains the task's context, ID, and status.&#10;- Define a `TaskStatus` enum (`Ready`, `Running`, `Terminated`) for the TCB.&#10;- Create a new top-level module `task` in `main.rs`.&#10;&#10;At this stage, these structures are defined but not yet used. The kernel&#10;boots and functions as before." />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
