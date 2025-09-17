@@ -1,7 +1,19 @@
 // src/bsp/qemu_virt.rs
 use crate::system::SystemControl;
 use core::ptr::write_volatile;
-pub const UART_BASE: usize = 0x10000000;
+pub const UART_BASE: usize = 0x10_000_000;
+pub const CLINT_BASE: usize = 0x2_000_000;
+pub const MTIME_OFFSET: usize = 0xBFF8;
+// pub const MTIME_OFFSET: usize = 0x7FF8;
+pub const MTIME_ADDR: usize = CLINT_BASE + MTIME_OFFSET;
+pub const MTIMECMP_OFFSET: usize = 0x4000 ;
+pub const MTIMECMP_BASE: usize = CLINT_BASE + MTIMECMP_OFFSET;
+pub const fn get_mtimecmp_addr(hart_id: i8) -> usize {
+    MTIMECMP_BASE + (hart_id * 8) as usize
+}
+//默认时钟频率为 10MHz
+pub const RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ: usize = 10_000_000;
+
 pub const RHR: usize = 0; //Receive Holding Register (read mode)
 // Transmit Holding Register (write mode)
 pub const THR :usize = 0;

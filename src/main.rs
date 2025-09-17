@@ -10,18 +10,20 @@ mod console;
 mod mm;
 mod system;
 mod task;
+mod interrupts;
 
 use alloc::vec::Vec;
 // use lang_items::*;
 // 使用 core::arch::global_asm! 宏来包含整个汇编文件
-use core::arch::global_asm;
+use core::arch::{asm, global_asm};
 use core::ptr::write_volatile;
 use core::slice;
 use driver::{SerialPort, Uart}; // 引入 Trait 和统一的 Uart 类型
 use lazy_static::lazy_static;
 use spin::Mutex;
-use crate::bsp::qemu_virt::QemuVirt;
+use crate::bsp::qemu_virt::{get_mtimecmp_addr, QemuVirt, MTIME_ADDR, RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ};
 use crate::console::_print;
+use crate::interrupts::{enable_machine_interrupts, init_mtimecmp};
 use crate::mm::{init_heap, LockedAllocator};
 use crate::system::SystemControl;
 
@@ -62,12 +64,17 @@ lazy_static! {
 pub extern "C" fn rust_main() {
     // 清空 BSS 段
     unsafe { clear_bss() };
+    unsafe {
+        init_mtimecmp();
+        enable_machine_interrupts();
+    }
     println!("Initializing heap...");
     init_heap();
     println!("Heap initialized.");
     let vec = Vec::from([1, 2, 3]);
     println!("vec 0: {}", vec[0]);
     println!("Hello from Charlotte OS!");
+
     let platform = QemuVirt;
     platform.shutdown();
 }
