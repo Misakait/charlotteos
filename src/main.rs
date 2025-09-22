@@ -10,12 +10,12 @@ mod console;
 mod mm;
 mod system;
 mod task;
-mod interrupts;
+mod trap;
 
 use alloc::vec::Vec;
 // use lang_items::*;
 // 使用 core::arch::global_asm! 宏来包含整个汇编文件
-use core::arch::{asm, global_asm};
+use core::arch::{asm, global_asm, naked_asm};
 use core::ptr::write_volatile;
 use core::slice;
 use driver::{SerialPort, Uart}; // 引入 Trait 和统一的 Uart 类型
@@ -23,9 +23,15 @@ use lazy_static::lazy_static;
 use spin::Mutex;
 use crate::bsp::qemu_virt::{get_mtimecmp_addr, QemuVirt, MTIME_ADDR, RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ};
 use crate::console::_print;
-use crate::interrupts::{enable_machine_interrupts, init_mtimecmp};
 use crate::mm::{init_heap, LockedAllocator};
 use crate::system::SystemControl;
+use crate::task::context::TaskContext;
+use crate::trap::interrupts::{enable_machine_interrupts, set_mtimecmp};
+use crate::trap::{trap_entry, trap_handler};
+
+// unsafe extern "C" {
+//     fn trap_entry();
+// }
 
 // 这行代码会把 entry.S 的内容直接嵌入到编译流程中
 global_asm!(include_str!("entry.S"));
@@ -59,22 +65,32 @@ lazy_static! {
         Mutex::new(uart)
     };
 }
-
+static mut KERNEL_INIT_CONTEXT: TaskContext = TaskContext::zero();
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_main() {
     // 清空 BSS 段
     unsafe { clear_bss() };
-    unsafe {
-        init_mtimecmp();
-        enable_machine_interrupts();
-    }
     println!("Initializing heap...");
     init_heap();
     println!("Heap initialized.");
+    // unsafe { trap_entry(); }
+    unsafe{
+        // println!("addr {:?}",&raw mut KERNEL_INIT_CONTEXT);=
+        asm!("csrw mscratch, {}", in(reg) &raw mut KERNEL_INIT_CONTEXT);
+        let mtvec_addr = (trap_entry as usize) & !0x3;
+        // println!("MTA: {:x},and original addr is: {:b}", mtvec_addr,trap_entry as usize);
+        // println!("MTA: {:b}", mtvec_addr);
+        asm!("csrw mtvec, {}", in(reg) mtvec_addr);
+    }
+    unsafe {
+        set_mtimecmp();
+        enable_machine_interrupts();
+    }
+    println!("trap handler addr: {:x}", trap_handler as usize);
     let vec = Vec::from([1, 2, 3]);
     println!("vec 0: {}", vec[0]);
     println!("Hello from Charlotte OS!");
-
+    loop{}
     let platform = QemuVirt;
     platform.shutdown();
 }

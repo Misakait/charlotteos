@@ -1,5 +1,24 @@
 use core::arch::asm;
 use crate::bsp::qemu_virt::{get_mtimecmp_addr, MTIME_ADDR, RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ};
+//因为mie.MTIE在第七位, 1 << 7 = 128
+const MIE_MTIE_MASK: usize = 1 << 7;
+const MIE_MEIE_MASK: usize = 1 << 11;
+#[derive(Debug)]
+pub enum InterruptCause {
+    MachineTimerInterrupt,
+    MachineExternalInterrupt,
+    Unknown,
+}
+
+impl InterruptCause {
+    pub fn from_code(code: usize) -> InterruptCause {
+        match code {
+            7 => InterruptCause::MachineTimerInterrupt,
+            11 => InterruptCause::MachineExternalInterrupt,
+            _ => InterruptCause::Unknown,
+        }
+    }
+}
 
 pub unsafe fn enable_machine_interrupts() {
     unsafe {
@@ -7,9 +26,6 @@ pub unsafe fn enable_machine_interrupts() {
         //此处的8为1 << 3
         asm!("csrsi mstatus, 8");
         //使能时钟中断
-        //因为mie.MTIE在第七位, 1 << 7 = 128
-        // asm!("csrsi mie, 128");
-        const MIE_MTIE_MASK: usize = 1 << 7;
 
         asm!(
         // 使用 csrrs (Read and Set) 指令
@@ -19,12 +35,21 @@ pub unsafe fn enable_machine_interrupts() {
         out(reg) _,             // 对应 {0}
         in(reg) MIE_MTIE_MASK,  // 对应 {1}，编译器会自动将 MIE_MTIE_MASK 放入一个寄存器
         );
+        //使能外部中断
+        asm!(
+        // 使用 csrrs (Read and Set) 指令
+        // 它会将 mie 的值与我们传入的寄存器值进行 OR 操作
+        // 第一个操作数 `_` 表示我们不关心 mie 的旧值，所以把它丢弃
+        "csrrs {0}, mie, {1}",
+        out(reg) _,             // 对应 {0}
+        in(reg) MIE_MEIE_MASK,  // 对应 {1}，编译器会自动将 MIE_MTIE_MASK 放入一个寄存器
+        );
     }
 }
-pub unsafe fn init_mtimecmp(){
+pub unsafe fn set_mtimecmp(){
     unsafe {
         //0.01即10毫秒
-        const TEN_MS_CYCLES: usize = (RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ as f64 * 0.01) as usize;
+        const TEN_MS_CYCLES: usize = (RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ as f64 * 1.0) as usize;
 
         // 1. 读取当前mtime值（64位）
         let current_mtime: usize;
