@@ -8,8 +8,8 @@ mod traits;
 pub use traits::*;
 
 // 3. 根据 feature 开关，继续声明具体的实现子模块
-#[cfg(feature = "uart_polling")]
-mod uart_polling;
-#[cfg(feature = "uart_polling")]
-pub use uart_polling::UartPolling as Uart;
+pub(crate) mod uart;
+pub mod plic;
+
+pub use uart::Uart as Uart;
 

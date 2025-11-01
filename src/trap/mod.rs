@@ -1,6 +1,11 @@
 use core::arch::naked_asm;
-use crate::println;
+use crate::driver::plic::{InterruptRequest, PLIC};
+
+use crate::{polling_print, polling_println, println};
 use crate::trap::interrupts::{set_mtimecmp, InterruptCause};
+#[cfg(feature = "uart_interrupt")]
+use crate::trap::interrupts::service::uart_service::{UartService, UART_SERVICE};
+use crate::trap::interrupts::service::uart_service::uart_interrupt_handler;
 
 pub mod interrupts;
 
@@ -120,23 +125,50 @@ pub fn parse_trap_cause(mcause: usize) -> TrapCause {
         TrapCause::Exception(ExceptionCause::Unknown)
     }
 }
+fn plic_handler() {
+
+    let irq_num = PLIC::claim();
+    let irq = InterruptRequest::num_to_irq(irq_num);
+
+    match irq {
+        InterruptRequest::UART => {
+
+            uart_interrupt_handler()
+        },
+        InterruptRequest::UNKNOWN => {
+            polling_println!("irq: {}", irq_num);
+            // println!("Unknown External Interrupt!");
+        }
+    }
+    // polling_println!( "{}", );
+    // polling_println!("[PLIC] Unhandled IRQ, hardcoded value: {}", 717);
+    PLIC::complete(InterruptRequest::to_num(&irq));
+    // polling_println!("[plic_handler] Returning...");
+}
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn trap_handler(mepc : usize, mcause: usize) -> usize {
-    println!("mepc: {:#x}, mcause: {:#x}", mepc, mcause);
+    // println!("mepc: {:#x}, mcause: {:#x}", mepc, mcause);
     match parse_trap_cause(mcause) {
         TrapCause::Interrupt(InterruptCause::MachineTimerInterrupt) => {
-            println!("Welcome to Time Interrupt!");
+            // println!("Welcome to Time Interrupt!");
+            // polling_println!("Welcome to Time Interrupt!");
             unsafe{set_mtimecmp();}
         }
         TrapCause::Interrupt(InterruptCause::MachineExternalInterrupt) => {
-            // 处理外部中断
+            // println!("Welcome to External Interrupt!");
+            plic_handler();
+            polling_println!("[trap_handler] Returning...");
         }
         TrapCause::Interrupt(InterruptCause::Unknown) => {
-            println!("Unknown interrupt");
+            // println!("Unknown interrupt");
         }
         TrapCause::Exception(ExceptionCause::Unknown) => {
-            println!("Unknown exception");
+            // println!("Unknown exception");
         }
     }
+    polling_println!("exit trap handler");
+    // println!("trap handler addr: 0x{:x},trap entry addr :0x{:x}", trap_handler as usize,trap_entry as usize);
+    // println!("mepc: 0x{:x}", mepc);
+    // polling_println!("mepc: 0x{:x}", mepc);
     mepc
 }

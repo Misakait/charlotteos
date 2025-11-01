@@ -8,11 +8,12 @@ lazy_static = { version = "1", features = ["spin_no_std"] }
 spin = "0.10.0"
 
 [features]
-default = ["uart_polling"] # 默认使用轮询
+default = ["uart_interrupt"]
+#default = ["uart_polling"]
 uart_polling = []
 uart_interrupt = []
+
 [profile.dev]
 # 开启 LTO (Link-Time Optimization)
 # true 会使用 "thin" LTO，编译速度稍快
-
 lto = true

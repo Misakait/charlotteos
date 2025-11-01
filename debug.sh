@@ -5,7 +5,7 @@ KERNEL="target/riscv64gc-unknown-none-elf/release/charlotte_os"
 
 # 1. 首先，编译项目以确保内核文件是最新的
 #    我们传递脚本收到的所有参数 (例如 --release) 给 cargo build
-cargo build "$@"
+cargo build "$@" --release
 
 # 2. 检查编译是否成功
 if [ $? -ne 0 ]; then

@@ -1,7 +1,7 @@
-# size of each hart's stack is 1024 bytes
-	# 为每个核心的栈定义大小，这里是 1024 字节
-	.equ	STACK_SIZE, 1024
-
+# size of each hart's stack is 8192 bytes
+	# 为每个核心的栈定义大小，这里是 8192 字节
+	.equ	STACK_SIZE, 1024*8
+	
 	# 将 _start 符号声明为全局可见，作为程序入口
 	.global	_start
 
@@ -19,8 +19,8 @@ _start:
 	# (注释有误，RISC-V 栈通常是向下生长的，但这里的计算逻辑是正确的)
 	# 为 0 号核心设置栈
 
-	slli	t0, t0, 10		# slli (Shift Left Logical Immediate): 将 t0 (此时必为0) 左移 10 位。
-					# 2^10 = 1024，所以这行相当于 t0 = t0 * 1024。对于0号核心，t0 仍然是 0。
+	slli	t0, t0, 13		# slli (Shift Left Logical Immediate): 将 t0 (此时必为0) 左移 13 位。
+					# 2^13 = 8192，所以这行相当于 t0 = t0 * 8192。对于0号核心，t0 仍然是 0。
 	la	sp, stacks + STACK_SIZE	# la (Load Address): 将 `stacks` 标签的地址加上一个栈的大小(STACK_SIZE)，结果加载到 sp (栈指针)。
 					# 这将 sp 指向了第一个栈空间的末尾（高地址处）。
 	add	sp, sp, t0		# 将 sp 和 t0 相加。对于0号核心，t0是0，所以 sp 不变。
@@ -37,8 +37,8 @@ park:
 .balign 16
 stacks:
 	# .skip 指令：在这里预留一块内存空间
-	# STACK_SIZE * 8: 预留 8 个核心的栈空间 (1024 * 8 = 8192 字节)
+	# STACK_SIZE * 1: 预留 1 个核心的栈空间 (8192 * 1 = 8192 字节)
 	# 这块内存就是所有核心的栈的总和。
-	.skip	STACK_SIZE * 8
+	.skip	STACK_SIZE * 1
 
 	.end				# 文件结束

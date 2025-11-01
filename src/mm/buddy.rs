@@ -35,13 +35,9 @@ impl BuddySystemAllocator {
     pub unsafe fn init(&mut self, heap_start: usize, heap_end: usize) {
         self.heap_start = heap_start;
         self.heap_end = heap_end;
-        // unsafe {
-        //     // 将整个堆空间作为最大的一块放入空闲链表
-        //     self.add_free_block(heap_start, heap_end - heap_start);
-        // }
         let mut current_start = heap_start;
-        println!("Buddy System Allocator initialized:");
-        println!("  -> Heap start: 0x{:x}, end: 0x{:x}", heap_start, heap_end);
+        // println!("Buddy System Allocator initialized:");
+        // println!("  -> Heap start: 0x{:x}, end: 0x{:x}", heap_start, heap_end);
         while current_start < heap_end {
             // a. 计算剩余空间大小
             let remaining_size = heap_end - current_start;
@@ -56,7 +52,7 @@ impl BuddySystemAllocator {
             unsafe {
                 self.add_free_block(current_start, block_size);
             }
-            println!("  -> Added block at 0x{:x},end at 0x{:x} size 0x{:x} ({} KB, {}MB)", current_start, current_start + block_size , block_size, block_size / 1024,block_size / 1024/ 1024  );
+            // println!("  -> Added block at 0x{:x},end at 0x{:x} size 0x{:x} ({} KB, {}MB)", current_start, current_start + block_size , block_size, block_size / 1024,block_size / 1024/ 1024  );
             // e. 更新下一次循环的起点
             current_start += block_size;
         }
@@ -110,7 +106,7 @@ impl BuddySystemAllocator {
 
                     current_order -= 1;
                 }
-                println!("the allocated block at 0x{:x} with size {} ({} KB, {} MB)", block.as_ptr() as usize, required_size, required_size / 1024, required_size / 1024 / 1024);
+                // println!("the allocated block at 0x{:x} with size {} ({} KB, {} MB)", block.as_ptr() as usize, required_size, required_size / 1024, required_size / 1024 / 1024);
                 // c. 返回最终大小合适的块
                 return Some(block.cast());
             }
@@ -158,63 +154,6 @@ impl BuddySystemAllocator {
         }
 
         unsafe { self.add_free_block(block_addr, block_size); }
-        // while current_order < MAX_ORDER - 1 {
-        //     // a. 计算伙伴块的地址
-        //     //    伙伴地址可以通过将当前地址与块大小进行异或(XOR)运算得到
-        //     let buddy_addr = block_addr ^ block_size;
-        //     let mut previous_addr: Option<NonNull<ListNode>> = None;
-        //     // b. 在对应阶的空闲链表中，查找是否存在这个伙伴块
-        //     let buddy_is_free = self.free_lists[current_order]
-        //         .map_or(false, |mut list_head| {
-        //             // --- 改进后的遍历逻辑 ---
-        //             loop {
-        //                 // 首先，检查当前节点
-        //                 if list_head.as_ptr() as usize == buddy_addr {
-        //                     match previous_addr {
-        //                         None => {
-        //                             let next_ptr = unsafe { (*list_head.as_ptr()).next };
-        //                             // 如果是链表头，直接更新头指针
-        //                             self.free_lists[current_order] = next_ptr;
-        //                         }
-        //                         Some(ptr) => {
-        //                             let next_ptr = unsafe { (*list_head.as_ptr()).next };
-        //                             // 如果是中间节点，更新前一个节点的 next 指针
-        //                             unsafe {
-        //                                 write_volatile(&mut (*ptr.as_ptr()).next, next_ptr);
-        //                             }
-        //                         }
-        //                     }
-        //                     return true; // 找到了！
-        //                 }
-        //                 // 如果当前节点不是我们要找的，就继续遍历
-        //                 // 然后，尝试移动到下一个节点
-        //                 if let Some(next_node) = unsafe { (*list_head.as_ptr()).next } {
-        //                     previous_addr = Some(list_head);
-        //                     list_head = next_node;
-        //                 } else {
-        //                     // 如果没有下一个节点了，说明已经遍历完且没找到
-        //                     return false;
-        //                 }
-        //             }
-        //             // --- 逻辑结束 ---
-        //         });
-        //
-        //     // c. 如果伙伴块不是空闲的，或者已经被合并，就停止合并
-        //     if !buddy_is_free {
-        //         break;
-        //     }
-        //
-        //     // d. 如果伙伴块是空闲的，就将它从空闲链表中移除，准备合并
-        //     // self.remove_from_free_list(buddy_addr, current_order);
-        //
-        //     // e. 合并：更新当前块的地址为两个伙伴中较小的那个，大小翻倍
-        //     block_addr = block_addr.min(buddy_addr);
-        //     // block_size *= 2; // 等同于下面的操作
-        //     current_order += 1; // 阶数加一，进入下一轮循环，尝试与新的、更大的伙伴合并
-        // }
-        //
-        // // 3. 将最终合并好的（或未合并的）块，加入到对应阶的空闲链表中
-        // unsafe { self.add_free_block(block_addr, 1 << (current_order + 12)); }
     }
 
     // 辅助函数，用于将空闲块添加到链表

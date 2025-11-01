@@ -1,3 +1,5 @@
+pub mod service;
+
 use core::arch::asm;
 use crate::bsp::qemu_virt::{get_mtimecmp_addr, MTIME_ADDR, RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ};
 //因为mie.MTIE在第七位, 1 << 7 = 128
@@ -20,7 +22,7 @@ impl InterruptCause {
     }
 }
 
-pub unsafe fn enable_machine_interrupts() {
+pub unsafe fn init_machine_interrupts() {
     unsafe {
         // 开启 M 模式下的中断总开关 (mstatus.MIE)
         //此处的8为1 << 3
@@ -42,8 +44,20 @@ pub unsafe fn enable_machine_interrupts() {
         // 第一个操作数 `_` 表示我们不关心 mie 的旧值，所以把它丢弃
         "csrrs {0}, mie, {1}",
         out(reg) _,             // 对应 {0}
-        in(reg) MIE_MEIE_MASK,  // 对应 {1}，编译器会自动将 MIE_MTIE_MASK 放入一个寄存器
+        in(reg) MIE_MEIE_MASK,  // 对应 {1}，编译器会自动将 MIE_MEIE_MASK 放入一个寄存器
         );
+    }
+}
+pub fn disable_machine_interrupts() {
+    unsafe {
+        // 关闭 M 模式下的中断总开关 (mstatus.MIE)
+        asm!("csrci mstatus, 8");
+    }
+}
+pub fn enable_machine_interrupts() {
+    unsafe {
+        // 开启 M 模式下的中断总开关 (mstatus.MIE)
+        asm!("csrsi mstatus, 8");
     }
 }
 pub unsafe fn set_mtimecmp(){

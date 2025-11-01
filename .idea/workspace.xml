@@ -6,18 +6,32 @@
   <component name="CargoProjects">
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml">
       <package file="$PROJECT_DIR$">
-        <enabledFeature name="default" />
+        <feature name="uart_interrupt" enabled="true" />
       </package>
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="434d2ccd-04f1-44a6-b15c-612660a1bbae" name="更改" comment="feat: Configure Clock Interrupt">
-      <change afterPath="$PROJECT_DIR$/src/trap/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.cargo/config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/.cargo/config.toml" afterDir="false" />
+    <list default="true" id="434d2ccd-04f1-44a6-b15c-612660a1bbae" name="更改" comment="feat: Add Interrupts handler">
+      <change afterPath="$PROJECT_DIR$/src/data_struct/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/data_struct/ring_buf.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/driver/plic.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/trap/interrupts/service/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/trap/interrupts/service/uart_service.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/interrupts/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/trap/interrupts/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/debug.sh" beforeDir="false" afterPath="$PROJECT_DIR$/debug.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bsp/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/bsp/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bsp/qemu_virt.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/bsp/qemu_virt.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/console/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/console/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/driver/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/driver/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/driver/traits.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/driver/traits.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/driver/uart_polling.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/driver/uart.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/entry.S" beforeDir="false" afterPath="$PROJECT_DIR$/src/entry.S" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lang_items.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lang_items.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/task/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/task/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mm/buddy.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/mm/buddy.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/trap/interrupts/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/trap/interrupts/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/trap/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/trap/mod.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -35,6 +49,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "Misakait"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "git@github.com:Misakait/charlotteos.git",
+    "accountId": "e47b0c37-05f5-42a8-946a-7a445d5f9ee4"
+  }
+}]]></component>
   <component name="HighlightingSettingsPerFile">
     <setting file="file://$PROJECT_DIR$/../.cache/JetBrains/RustRover2025.2/intellij-rust/stdlib-local-copy/1.91.0-nightly-e403c83176154d07cc475bf0a42af658c00124a5/library/core/src/sync/atomic.rs" root0="SKIP_INSPECTION" />
     <setting file="file://$PROJECT_DIR$/../.cache/JetBrains/RustRover2025.2/intellij-rust/stdlib-local-copy/1.91.0-nightly-e403c83176154d07cc475bf0a42af658c00124a5/library/core/src/sync/exclusive.rs" root0="SKIP_INSPECTION" />
@@ -61,6 +87,7 @@
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/wanan/coreutils&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -79,8 +106,8 @@
       <window_info id="Backup and Sync History" />
       <window_info id="Commit_Guest" show_stripe_button="false" />
       <window_info id="Pull Requests" />
-      <window_info content_ui="combo" id="Project" order="0" />
-      <window_info active="true" id="Commit" order="1" visible="true" weight="0.16067708" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.14817709" />
+      <window_info id="Commit" order="1" weight="0.14817709" />
       <window_info id="Structure" order="2" side_tool="true" weight="0.25" />
       <window_info anchor="bottom" id="Database Changes" />
       <window_info anchor="bottom" id="TypeScript" />
@@ -96,6 +123,7 @@
       <window_info anchor="bottom" id="Build" order="6" weight="0.33023" />
       <window_info anchor="bottom" id="Run" order="7" weight="0.33023" />
       <window_info anchor="bottom" id="Debug" order="8" weight="0.31270537" />
+      <window_info anchor="bottom" id="Find" order="9" weight="0.32994187" />
       <window_info anchor="right" content_ui="combo" id="Notifications" order="0" weight="0.25" />
       <window_info anchor="right" id="AIAssistant" order="1" weight="0.25" />
       <window_info anchor="right" id="Gradle" order="2" weight="0.25" />
@@ -105,7 +133,7 @@
       <window_info anchor="right" id="Database" order="6" weight="0.25" />
       <window_info anchor="right" id="Code Search" order="7" />
       <window_info anchor="right" id="github.copilotToolWindow" order="8" />
-      <window_info anchor="right" id="GitHub Copilot Chat" order="9" />
+      <window_info anchor="right" id="GitHub Copilot Chat" order="9" weight="0.32994792" />
       <window_info anchor="right" id="Translation.Wordbook" order="10" side_tool="true" />
       <window_info anchor="right" id="Coverage" order="11" side_tool="true" weight="0.32994792" />
     </layout>
@@ -167,7 +195,9 @@
       <workItem from="1755582015800" duration="20132000" />
       <workItem from="1756636185683" duration="709000" />
       <workItem from="1757859837031" duration="23135000" />
-      <workItem from="1758257717817" duration="13577000" />
+      <workItem from="1758257717817" duration="13877000" />
+      <workItem from="1758945674104" duration="47881000" />
+      <workItem from="1759652556237" duration="184000" />
     </task>
     <task id="LOCAL-00001" summary="fix: 整理好代码结构,保持高内聚">
       <option name="closed" value="true" />
@@ -217,7 +247,15 @@
       <option name="project" value="LOCAL" />
       <updated>1758116937514</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="feat: Add Interrupts handler">
+      <option name="closed" value="true" />
+      <created>1758531289773</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1758531289773</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -241,7 +279,8 @@
     <MESSAGE value="feat: 清零bss段" />
     <MESSAGE value="feat(arch): Define Task Context and TCB data structures&#10;&#10;This commit introduces the foundational data structures required for&#10;task management.&#10;&#10;- Create `TaskContext` struct in `src/task/context.rs` to hold the&#10;  callee-saved registers (`ra`, `sp`, `s0-s11`), marked with `#[repr(C)]`.&#10;- Create `TaskControlBlock` (TCB) struct in `src/task/tcb.rs` which&#10;  contains the task's context, ID, and status.&#10;- Define a `TaskStatus` enum (`Ready`, `Running`, `Terminated`) for the TCB.&#10;- Create a new top-level module `task` in `main.rs`.&#10;&#10;At this stage, these structures are defined but not yet used. The kernel&#10;boots and functions as before." />
     <MESSAGE value="feat: Configure Clock Interrupt" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: Configure Clock Interrupt" />
+    <MESSAGE value="feat: Add Interrupts handler" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: Add Interrupts handler" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
