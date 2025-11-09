@@ -29,8 +29,8 @@ QEMU_PID=$!
 
 # 5. 启动 GDB，它会自动读取 .gdbinit 文件并连接
 #    使用您系统上的正确 GDB 命令
-gdb-multiarch
-
+# gdb-multiarch
+gdb
 # 6. 当 GDB 退出后 (您在GDB中输入quit)，脚本会继续执行
 #    杀死后台的 QEMU 进程，完成清理工作
 echo "GDB会话结束，正在关闭QEMU..."

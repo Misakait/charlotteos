@@ -9,7 +9,7 @@ spin = "0.10.0"
 
 [features]
 default = ["uart_interrupt"]
-#default = ["uart_polling"]
+# default = ["uart_polling"]
 uart_polling = []
 uart_interrupt = []
 
