@@ -1,13 +1,11 @@
-use crate::driver::Uart; // 引入统一的 Uart 类型
+use crate::UART;
+use crate::bsp::qemu_virt::{LSR, THR, UART_BASE};
+// use crate::driver::Uart; // 引入统一的 Uart 类型
 use core::fmt::{self, Write};
 use core::ptr::{read_volatile, write_volatile};
-use crate::bsp::qemu_virt::{LSR, THR, UART_BASE};
-use crate::UART;
 
 pub fn _print(args: fmt::Arguments) {
-    unsafe{
-        UART.lock().write_fmt(args).unwrap();
-    }
+    UART.lock().write_fmt(args).unwrap();
 }
 
 #[macro_export]

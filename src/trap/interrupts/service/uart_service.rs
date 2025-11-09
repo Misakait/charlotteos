@@ -1,10 +1,9 @@
-use crate::{polling_print, polling_println, UART};
 use crate::bsp::qemu_virt::{ISR, LSR, RHR, THR, UART_BASE};
 use crate::data_struct::ring_buf::RingBuffer;
+use crate::{UART, polling_print, polling_println};
 use core::fmt::Write;
 use core::ptr::{read_volatile, write_volatile};
 use spin::mutex::SpinMutex;
-
 
 const UART_FIFO_CAPACITY: usize = 16;
 #[cfg(feature = "uart_interrupt")]
@@ -20,31 +19,44 @@ impl UartService {
         UartService {
             receive_buffer: SpinMutex::<RingBuffer<u8, 4096>>::new(RingBuffer::<u8, 4096>::new()),
             transmit_buffer: SpinMutex::<RingBuffer<u8, 4096>>::new(RingBuffer::<u8, 4096>::new()),
-
         }
     }
     pub fn send_data(&self) {
-        let mut tr =  self.transmit_buffer.lock();
-        let uart = UART.lock();
+        // polling_println!("send_data");
+        let mut tr = self.transmit_buffer.lock();
+        // polling_print!("get the lock");
+        // let uart = UART.lock();
+        // polling_print!("get the uart lock");
         for _ in 0..UART_FIFO_CAPACITY {
             // 尝试从软件缓冲区取出一个字符
             if let Some(character) = tr.pop() {
-                uart.write_to_reg(character);
+                let thr_ptr = (UART_BASE + THR) as *mut u8;
+                unsafe {
+                    write_volatile(thr_ptr, character);
+                }
+                // uart.write_to_reg(character);
             } else {
                 break;
             }
         }
         if tr.is_empty() {
-            polling_print!("empty");
-            uart.disable_transmit_interrupt();
-            polling_println!("[send_data] Returning...");
+            use crate::bsp::qemu_virt::IER;
+
+            // polling_print!("empty");
+            // uart.disable_transmit_interrupt();
+            let ier_ptr = (UART_BASE + IER) as *mut u8;
+            unsafe {
+                let current_ier = read_volatile(ier_ptr);
+                write_volatile(ier_ptr, current_ier & !0x02); // 禁用发送中断
+            }
+            // polling_println!("[send_data] Returning...");
         }
     }
 }
-const ISR_CAUSE_MASK: u8   = 0b0000_1110; // 我们只关心 Bit 1, 2, 3
+const ISR_CAUSE_MASK: u8 = 0b0000_1110; // 我们只关心 Bit 1, 2, 3
 const ISR_RX_AVAILABLE: u8 = 0b0000_0100; // RXRDY (接收数据)
-const ISR_TX_EMPTY: u8     = 0b0000_0010; // TXRDY (发送空)
-const ISR_LINE_STATUS: u8  = 0b0000_0110; // LSR (线路状态)
+const ISR_TX_EMPTY: u8 = 0b0000_0010; // TXRDY (发送空)
+const ISR_LINE_STATUS: u8 = 0b0000_0110; // LSR (线路状态)
 
 // 这是你的中断分诊函数
 pub fn uart_interrupt_handler() {
@@ -77,8 +89,6 @@ pub fn uart_interrupt_handler() {
                 let _ = read_volatile(lsr_ptr);
             }
         }
-        _ => {
-
-        }
+        _ => {}
     }
 }

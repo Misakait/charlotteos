@@ -3,9 +3,13 @@
 // 使用 `super` 关键字来引用父模块（`driver` 模块）中的 `SerialPort` Trait。
 // 因为 `driver/mod.rs` 已经将 Trait 公开，所以这里可以轻松地找到它。
 use super::SerialPort;
+#[cfg(feature = "uart_interrupt")]
 use crate::trap::interrupts::service::uart_service::UART_SERVICE;
 // 从 bsp 获取基地址
-use crate::bsp::qemu_virt::{DLL, DLM, FCR, IER, LCR, LSR, RHR, THR, UART0_IRQ, plic_context_addr, plic_enable_addr, plic_priority_addr, UART_BASE};
+use crate::bsp::qemu_virt::{
+    DLL, DLM, FCR, IER, LCR, LSR, RHR, THR, UART_BASE, UART0_IRQ, plic_context_addr,
+    plic_enable_addr, plic_priority_addr,
+};
 use core::ptr::{read_volatile, write_volatile};
 
 pub struct Uart {
@@ -101,8 +105,10 @@ impl SerialPort for Uart {
     }
 
     fn putchar(&mut self, c: u8) -> Result<(), u8> {
+        // polling_println!("puchar!");
+        self.disable_transmit_interrupt();
         UART_SERVICE.transmit_buffer.lock().push(c)?;
-        // self.enable_transmit_interrupt();
+        self.enable_transmit_interrupt();
         Ok(())
     }
 
@@ -130,15 +136,12 @@ impl Uart {
     #[inline(always)]
     pub fn disable_transmit_interrupt(&self) {
         let ier_ptr = (self.base_address + IER) as *mut u8;
-        polling_println!("[DISABLE] Trying to write...");
-        polling_println!("[DISABLE]  -> self.base_address = {:#x}", self.base_address);
-        polling_println!("[DISABLE]  -> IER constant = {}", IER);
-        polling_println!("[DISABLE]  -> Calculated ier_ptr = {:#x}", ier_ptr as usize);
+        // polling_println!("[DISABLE] Trying to write...");
         unsafe {
             let current_ier = read_volatile(ier_ptr);
             write_volatile(ier_ptr, current_ier & !0x02); // 禁用发送中断
         }
-        polling_println!("[DISABLE] Write successful!");
+        // polling_println!("[DISABLE] Write successful!");
     }
     #[inline(always)]
     fn enable_transmit_interrupt(&self) {
@@ -160,9 +163,9 @@ impl Uart {
 use crate::bsp::get_hart_id;
 use crate::data_struct::ring_buf::RingBuffer;
 
+use crate::{polling_print, polling_println};
 use core::fmt::{Error, Write};
 use spin::mutex::SpinMutex;
-use crate::{polling_print, polling_println};
 
 impl Write for Uart {
     fn write_str(&mut self, s: &str) -> Result<(), Error> {
@@ -170,8 +173,7 @@ impl Write for Uart {
             // 这里调用的是 SerialPort Trait 定义的 putchar 方法
             while let Err(_) = self.putchar(c) {}
         }
-        
+
         Ok(())
     }
 }
-

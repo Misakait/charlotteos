@@ -1,36 +1,30 @@
-use core::arch::naked_asm;
 use crate::driver::plic::{InterruptRequest, PLIC};
+use core::arch::naked_asm;
 
-use crate::{polling_print, polling_println, println};
-use crate::trap::interrupts::{set_mtimecmp, InterruptCause};
-#[cfg(feature = "uart_interrupt")]
-use crate::trap::interrupts::service::uart_service::{UartService, UART_SERVICE};
 use crate::trap::interrupts::service::uart_service::uart_interrupt_handler;
+#[cfg(feature = "uart_interrupt")]
+use crate::trap::interrupts::service::uart_service::{UART_SERVICE, UartService};
+use crate::trap::interrupts::{InterruptCause, set_mtimecmp};
+use crate::{polling_print, polling_println, println};
 
 pub mod interrupts;
-
-
 
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn trap_entry() {
     naked_asm!(
-    // 1. 原子地交换 t6 和 mscratch，安全地获取到当前任务的上下文指针
+        // 1. 原子地交换 t6 和 mscratch，安全地获取到当前任务的上下文指针
         //    执行后: t6 = &current_task_ctx, mscratch = old_t6
         "csrrw t6, mscratch, t6",
-
         // 2. 将当前任务的完整上下文，保存到 t6 指向的 TaskContext 中
         "sd ra, 0(t6)",      // ra  (x1)
         "sd sp, 8(t6)",      // sp  (x2)
         "sd tp, 16(t6)",     // tp  (x4)
-
         "sd t0, 24(t6)",     // t0  (x5)
         "sd t1, 32(t6)",     // t1  (x6)
         "sd t2, 40(t6)",     // t2  (x7)
-
         "sd s0, 48(t6)",     // s0  (x8)
         "sd s1, 56(t6)",     // s1  (x9)
-
         "sd a0, 64(t6)",     // a0 (x10)
         "sd a1, 72(t6)",     // a1 (x11)
         "sd a2, 80(t6)",     // a2 (x12)
@@ -39,7 +33,6 @@ pub unsafe extern "C" fn trap_entry() {
         "sd a5, 104(t6)",    // a5 (x15)
         "sd a6, 112(t6)",    // a6 (x16)
         "sd a7, 120(t6)",    // a7 (x17)
-
         "sd s2, 128(t6)",    // s2 (x18)
         "sd s3, 136(t6)",    // s3 (x19)
         "sd s4, 144(t6)",    // s4 (x20)
@@ -53,20 +46,15 @@ pub unsafe extern "C" fn trap_entry() {
         "sd t3, 208(t6)",    // t3 (x28)
         "sd t4, 216(t6)",    // t4 (x29)
         "sd t5, 224(t6)",    // t5 (x30)
-
-        "mv t5, t6",      // 备份 t6 (current_task_ctx) 到 t5
+        "mv t5, t6",         // 备份 t6 (current_task_ctx) 到 t5
         "csrr t6, mscratch", // 取回旧的 t6 (old_t6)
         "sd t6, 232(t5)",    // 保存 old_t6
         "csrw mscratch, t5", // 恢复 mscratch = &current_task_ctx
-
-        "csrr a0, mepc", // 取出 mepc 到 a0，准备传给中断处理函数
-        "csrr a1, mcause", // 取出 mcause 到 a1，准备传给中断处理函数
+        "csrr a0, mepc",     // 取出 mepc 到 a0，准备传给中断处理函数
+        "csrr a1, mcause",   // 取出 mcause 到 a1，准备传给中断处理函数
         "call trap_handler", // 调用中断处理函数
-
-        "csrw mepc, a0", // 将 mepc 恢复回去或者修改
-
+        "csrw mepc, a0",     // 将 mepc 恢复回去或者修改
         "csrr a0, mscratch", // 取出 &current_task_ctx 到 a0
-
         "ld ra, 0(a0)",
         "ld sp, 8(a0)",
         "ld tp, 16(a0)",
@@ -99,7 +87,6 @@ pub unsafe extern "C" fn trap_entry() {
         "ld t6, 232(a0)",
         // 最后恢复 a0 ，因为我们之前一直需要用 a0 作为基地址
         "ld a0, 64(a0)",
-
         // 6. 执行 ret，跳转到新加载的 ra 地址，完成切换
         "mret"
     );
@@ -126,15 +113,11 @@ pub fn parse_trap_cause(mcause: usize) -> TrapCause {
     }
 }
 fn plic_handler() {
-
     let irq_num = PLIC::claim();
     let irq = InterruptRequest::num_to_irq(irq_num);
 
     match irq {
-        InterruptRequest::UART => {
-
-            uart_interrupt_handler()
-        },
+        InterruptRequest::UART => uart_interrupt_handler(),
         InterruptRequest::UNKNOWN => {
             polling_println!("irq: {}", irq_num);
             // println!("Unknown External Interrupt!");
@@ -146,18 +129,22 @@ fn plic_handler() {
     // polling_println!("[plic_handler] Returning...");
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn trap_handler(mepc : usize, mcause: usize) -> usize {
+pub unsafe extern "C" fn trap_handler(mepc: usize, mcause: usize) -> usize {
+    // polling_println!("Welcome to Interrupt!");
     // println!("mepc: {:#x}, mcause: {:#x}", mepc, mcause);
     match parse_trap_cause(mcause) {
         TrapCause::Interrupt(InterruptCause::MachineTimerInterrupt) => {
             // println!("Welcome to Time Interrupt!");
             // polling_println!("Welcome to Time Interrupt!");
-            unsafe{set_mtimecmp();}
+            unsafe {
+                set_mtimecmp();
+            }
         }
         TrapCause::Interrupt(InterruptCause::MachineExternalInterrupt) => {
             // println!("Welcome to External Interrupt!");
+            // polling_println!("Welcome to External Interrupt!");
             plic_handler();
-            polling_println!("[trap_handler] Returning...");
+            // polling_println!("[trap_handler] Returning...");
         }
         TrapCause::Interrupt(InterruptCause::Unknown) => {
             // println!("Unknown interrupt");
@@ -166,7 +153,7 @@ pub unsafe extern "C" fn trap_handler(mepc : usize, mcause: usize) -> usize {
             // println!("Unknown exception");
         }
     }
-    polling_println!("exit trap handler");
+    // polling_println!("exit trap handler");
     // println!("trap handler addr: 0x{:x},trap entry addr :0x{:x}", trap_handler as usize,trap_entry as usize);
     // println!("mepc: 0x{:x}", mepc);
     // polling_println!("mepc: 0x{:x}", mepc);
