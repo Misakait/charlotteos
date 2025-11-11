@@ -70,11 +70,11 @@ static mut KERNEL_INIT_CONTEXT: TaskContext = TaskContext::zero();
 pub extern "C" fn rust_main() {
     // 清空 BSS 段
     clear_bss();
-    // println!("abcdefghijklmnopqrstuvwxyz");
-    // println!("abcdefghijklmnopqrstuvwxyz");
+
     println!("Initializing heap...");
     init_heap();
     println!("Heap initialized.");
+
     unsafe {
         asm!("csrw mscratch, {}", in(reg) &raw mut KERNEL_INIT_CONTEXT);
         let mtvec_addr = (trap_entry as usize) & !0x3;
@@ -84,12 +84,11 @@ pub extern "C" fn rust_main() {
     println!("vec 0: {}", vec[0]);
     // polling_println!("vec: {:?}", vec.as_ptr() as *mut u8);
 
-    println!("Hello from Charlotte OS!");
     unsafe {
         set_mtimecmp();
         init_machine_interrupts();
     }
-    println!("test");
+    println!("Hello from Charlotte OS!");
     // loop {}
     let platform = QemuVirt;
     platform.shutdown();
