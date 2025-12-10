@@ -107,9 +107,9 @@ impl SerialPort for Uart {
     fn putchar(&mut self, c: u8) -> Result<(), u8> {
         // polling_println!("puchar!");
         self.disable_transmit_interrupt();
-        UART_SERVICE.transmit_buffer.lock().push(c)?;
+        let res = UART_SERVICE.transmit_buffer.lock().push(c);
         self.enable_transmit_interrupt();
-        Ok(())
+        res
     }
 
     fn getchar(&mut self) -> Option<u8> {
