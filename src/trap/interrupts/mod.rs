@@ -1,10 +1,11 @@
 pub mod service;
 
+use crate::bsp::qemu_virt::{MTIME_ADDR, RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ, get_mtimecmp_addr};
 use core::arch::asm;
-use crate::bsp::qemu_virt::{get_mtimecmp_addr, MTIME_ADDR, RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ};
 //因为mie.MTIE在第七位, 1 << 7 = 128
 const MIE_MTIE_MASK: usize = 1 << 7;
 const MIE_MEIE_MASK: usize = 1 << 11;
+const MSTATUS_MIE_MASK: usize = 1 << 3;
 #[derive(Debug)]
 pub enum InterruptCause {
     MachineTimerInterrupt,
@@ -54,17 +55,35 @@ pub fn disable_machine_interrupts() {
         asm!("csrci mstatus, 8");
     }
 }
+#[inline]
+pub fn read_and_disable_machine_interrupts() -> usize {
+    let mut mstatus: usize;
+    unsafe {
+        // csrrci rd csr imm读取csr到rd并置imm位的bit为零
+        asm!("csrrci {}, mstatus, {}", out(reg) mstatus, const 8);
+    }
+    mstatus
+}
+#[inline]
+pub fn restore_interrupts(saved_status: usize) {
+    // 如果之前是开中断的 (MIE=1)，则重新开启
+    if (saved_status & MSTATUS_MIE_MASK) != 0 {
+        unsafe {
+            asm!("csrsi mstatus, {}", const MSTATUS_MIE_MASK);
+        }
+    }
+}
 pub fn enable_machine_interrupts() {
     unsafe {
         // 开启 M 模式下的中断总开关 (mstatus.MIE)
         asm!("csrsi mstatus, 8");
     }
 }
-pub unsafe fn set_mtimecmp(){
+pub unsafe fn set_mtimecmp() {
     unsafe {
         //0.01即10毫秒
-        const TEN_MS_CYCLES: usize = (RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ as f64 * 1.0) as usize;
-
+        // const TEN_MS_CYCLES: usize = (RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ as f64 * 1.0) as usize;
+        const TEN_MS_CYCLES: usize = (RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ as f64 * 0.01) as usize;
         // 1. 读取当前mtime值（64位）
         let current_mtime: usize;
         asm!(
@@ -84,6 +103,5 @@ pub unsafe fn set_mtimecmp(){
         in(reg) MTIMECMP_ADDR,          // 输入：mtimecmp的内存地址
         options(nostack)           // 选项：不使用栈
         );
-
     }
 }

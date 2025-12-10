@@ -3,7 +3,7 @@ use core::arch::naked_asm;
 
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn __switch_to(next_task_ctx: *const TaskContext) {
+pub unsafe extern "C" fn __switch_to(next_task_ctx: *mut TaskContext) {
     naked_asm!(
         // 1. 原子地交换 t6 和 mscratch，安全地获取到当前任务的上下文指针
         //    执行后: t6 = &current_task_ctx, mscratch = old_t6
@@ -40,9 +40,15 @@ pub unsafe extern "C" fn __switch_to(next_task_ctx: *const TaskContext) {
         "sd t3, 208(t6)",  // t3 (x28)
         "sd t4, 216(t6)",  // t4 (x29)
         "sd t5, 224(t6)",  // t5 (x30)
+        // 4. 特殊处理 t6：使用 t5 作为临时备份
+        "mv t5, t6",         // t5 = &current_task_ctx（备份）
+        "csrr t6, mscratch", // t6 = old_t6（原始值）
+        "sd t6, 232(t5)",    // 使用 t5 作为基址保存 t6
+        // 5. 恢复 mscratch
+        "csrw mscratch, t5", // mscratch = &current_task_ctx
         // 特殊处理 t6: 先把它原来的值从 mscratch 换回来，再保存
-        "csrrw t6, mscratch, t6",
-        "sd t6, 232(t6)", // t6 (x31)
+        // "csrrw t6, mscratch, t6",
+        // "sd t6, 232(t6)", // t6 (x31)
         // "1:",
         // 4. 将 mscratch 更新为下一个任务的上下文指针 (next_task_ctx 在 a0 中)
         "csrw mscratch, a0",
