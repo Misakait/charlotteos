@@ -1,13 +1,12 @@
 // src/mm/mod.rs
 pub mod buddy;
 
-
+use crate::println;
+use buddy::BuddySystemAllocator;
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr;
 use core::ptr::NonNull;
 use spin::Mutex;
-use buddy::BuddySystemAllocator;
-use crate::println;
 
 pub const PAGE_SIZE: usize = 4096; // 4KB
 
@@ -41,17 +40,16 @@ unsafe impl GlobalAlloc for LockedAllocator {
 }
 // 使用 #[global_allocator] 属性来注册我们的全局分配器实例
 #[global_allocator]
-static HEAP_ALLOCATOR: LockedAllocator = LockedAllocator::new();
+pub static HEAP_ALLOCATOR: LockedAllocator = LockedAllocator::new();
 
 unsafe extern "C" {
     static _heap_start: usize;
     static _heap_size: usize;
     static _text_start: usize;
-    static _memory_end:usize;
+    static _memory_end: usize;
 }
 /// 初始化堆分配器
 pub fn init_heap() {
-    
     // 获取原始的堆边界
     let heap_start_raw = unsafe { &_heap_start as *const _ as usize };
     let heap_end_raw = unsafe { &_memory_end as *const _ as usize };

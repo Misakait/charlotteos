@@ -1,7 +1,7 @@
-use core::alloc::Layout;
-use core::ptr::{write_volatile, NonNull};
 use crate::mm::{HEAP_ALLOCATOR, PAGE_SIZE};
 use crate::println;
+use core::alloc::Layout;
+use core::ptr::{NonNull, write_volatile};
 
 pub const MAX_ORDER: usize = 16; // 阶数范围是 0..15，共 16 个
 #[repr(C)]
@@ -36,14 +36,18 @@ impl BuddySystemAllocator {
         self.heap_start = heap_start;
         self.heap_end = heap_end;
         let mut current_start = heap_start;
-        // println!("Buddy System Allocator initialized:");
-        // println!("  -> Heap start: 0x{:x}, end: 0x{:x}", heap_start, heap_end);
+        println!("Buddy System Allocator initialized:");
+        println!("  -> Heap start: 0x{:x}, end: 0x{:x}", heap_start, heap_end);
         while current_start < heap_end {
             // a. 计算剩余空间大小
             let remaining_size = heap_end - current_start;
 
             // b. 找出能放入剩余空间的最大2次幂块
-            let block_size = if remaining_size == 0 { 0 } else { 1 << remaining_size.ilog2() };
+            let block_size = if remaining_size == 0 {
+                0
+            } else {
+                1 << remaining_size.ilog2()
+            };
             // c. 确保块大小不小于最小单位 (PAGE_SIZE)
             if block_size < PAGE_SIZE {
                 break;
@@ -52,7 +56,14 @@ impl BuddySystemAllocator {
             unsafe {
                 self.add_free_block(current_start, block_size);
             }
-            // println!("  -> Added block at 0x{:x},end at 0x{:x} size 0x{:x} ({} KB, {}MB)", current_start, current_start + block_size , block_size, block_size / 1024,block_size / 1024/ 1024  );
+            println!(
+                "  -> Added block at 0x{:x},end at 0x{:x} size 0x{:x} ({} KB, {}MB)",
+                current_start,
+                current_start + block_size,
+                block_size,
+                block_size / 1024,
+                block_size / 1024 / 1024
+            );
             // e. 更新下一次循环的起点
             current_start += block_size;
         }
@@ -106,7 +117,13 @@ impl BuddySystemAllocator {
 
                     current_order -= 1;
                 }
-                // println!("the allocated block at 0x{:x} with size {} ({} KB, {} MB)", block.as_ptr() as usize, required_size, required_size / 1024, required_size / 1024 / 1024);
+                // println!(
+                //     "the allocated block at 0x{:x} with size {} ({} KB, {} MB)",
+                //     block.as_ptr() as usize,
+                //     required_size,
+                //     required_size / 1024,
+                //     required_size / 1024 / 1024
+                // );
                 // c. 返回最终大小合适的块
                 return Some(block.cast());
             }
@@ -153,12 +170,13 @@ impl BuddySystemAllocator {
             }
         }
 
-        unsafe { self.add_free_block(block_addr, block_size); }
+        unsafe {
+            self.add_free_block(block_addr, block_size);
+        }
     }
 
     // 辅助函数，用于将空闲块添加到链表
     pub(crate) unsafe fn add_free_block(&mut self, addr: usize, size: usize) {
-
         // --- 1. 计算阶 (Order) ---
         // size.trailing_zeros() 是一个计算 log2(size) 的高效方法
         // 例如 4096 (2^12) 的 trailing_zeros 就是 12
