@@ -43,6 +43,8 @@ pub struct TaskContext {
     pub t4: usize,
     pub t5: usize,
     pub t6: usize,
+
+    pub mepc: usize,
 }
 
 impl TaskContext {
@@ -79,6 +81,7 @@ impl TaskContext {
             t4: 0,
             t5: 0,
             t6: 0,
+            mepc: 0,
         }
     }
 }
