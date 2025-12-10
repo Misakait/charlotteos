@@ -156,6 +156,7 @@ impl Scheduler {
             self.ready_queue.push_back(0);
         }
         let next_tcb = self.task_list[next_id].as_mut().expect("next task missing");
+        next_tcb.status = TaskStatus::Running;
         self.current_task_id = Some(next_id);
         polling_println!("after: {:?}", self.current_task_id);
         &mut next_tcb.context as *mut TaskContext
