@@ -103,7 +103,7 @@ impl Scheduler {
         Ok(())
     }
 
-    fn prepare_next_task(&mut self, from_exit: bool) -> *mut TaskContext {
+    fn prepare_next_task(&mut self) -> *mut TaskContext {
         // 回收僵尸任务，但跳过当前任务（如果它刚退出的话）
         // 因为我们还在当前任务的栈上运行，不能立刻释放它
         let current_id = self.current_task_id;
@@ -135,13 +135,11 @@ impl Scheduler {
             }
         }
 
-        if !from_exit {
-            if let Some(cur) = current_id {
-                if let Some(tcb) = self.task_list[cur].as_mut() {
-                    if matches!(tcb.status, TaskStatus::Running) {
-                        tcb.status = TaskStatus::Ready;
-                        self.ready_queue.push_back(cur);
-                    }
+        if let Some(cur) = current_id {
+            if let Some(tcb) = self.task_list[cur].as_mut() {
+                if matches!(tcb.status, TaskStatus::Running) {
+                    tcb.status = TaskStatus::Ready;
+                    self.ready_queue.push_back(cur);
                 }
             }
         }
@@ -152,7 +150,11 @@ impl Scheduler {
         //     next_tcb.status = TaskStatus::Running;
         //     &mut next_tcb.context as *mut TaskContext
         // };
-        let next_id = self.ready_queue.pop_front().unwrap_or(0);
+        let mut next_id = self.ready_queue.pop_front().unwrap_or(0);
+        if next_id == 0 && !self.ready_queue.is_empty() {
+            next_id = self.ready_queue.pop_front().unwrap();
+            self.ready_queue.push_back(0);
+        }
         let next_tcb = self.task_list[next_id].as_mut().expect("next task missing");
         self.current_task_id = Some(next_id);
         polling_println!("after: {:?}", self.current_task_id);
@@ -196,7 +198,7 @@ impl Scheduler {
         // 获取第一个任务的上下文指针
         let next_ctx_ptr = {
             let mut scheduler = SCHEDULER.lock();
-            scheduler.prepare_next_task(false)
+            scheduler.prepare_next_task()
         }; // 锁在这里被释放！
 
         // 在锁释放后执行上下文切换
@@ -208,7 +210,7 @@ impl Scheduler {
     }
     pub fn schedule_on_interrupt() -> *mut TaskContext {
         let mut scheduler = SCHEDULER.lock();
-        scheduler.prepare_next_task(false)
+        scheduler.prepare_next_task()
     }
 }
 
