@@ -1,5 +1,7 @@
 use crate::driver::plic::{InterruptRequest, PLIC};
-use core::arch::naked_asm;
+use crate::task::SCHEDULER;
+use crate::task::scheduler::Scheduler;
+use core::arch::{asm, naked_asm};
 
 use crate::trap::interrupts::service::uart_service::uart_interrupt_handler;
 #[cfg(feature = "uart_interrupt")]
@@ -51,6 +53,7 @@ pub unsafe extern "C" fn trap_entry() {
         "sd t6, 232(t5)",    // 保存 old_t6
         "csrw mscratch, t5", // 恢复 mscratch = &current_task_ctx
         "csrr a0, mepc",     // 取出 mepc 到 a0，准备传给中断处理函数
+        "sd a0, 240(t5)",    // 保存a0(即mepc)
         "csrr a1, mcause",   // 取出 mcause 到 a1，准备传给中断处理函数
         "call trap_handler", // 调用中断处理函数
         "csrw mepc, a0",     // 将 mepc 恢复回去或者修改
@@ -135,9 +138,17 @@ pub unsafe extern "C" fn trap_handler(mepc: usize, mcause: usize) -> usize {
     match parse_trap_cause(mcause) {
         TrapCause::Interrupt(InterruptCause::MachineTimerInterrupt) => {
             // println!("Welcome to Time Interrupt!");
-            // polling_println!("Welcome to Time Interrupt!");
+            polling_println!("Welcome to Time Interrupt!");
             unsafe {
                 set_mtimecmp();
+            }
+            let next_ctx_ptr = Scheduler::schedule_on_interrupt();
+            // 更新 mscratch 指向下一个任务的上下文
+            // trap_entry 会恢复这个上下文
+            unsafe {
+                asm!("csrw mscratch, {}", in(reg) next_ctx_ptr);
+                // 返回下一个任务的 mepc
+                return (*next_ctx_ptr).mepc;
             }
         }
         TrapCause::Interrupt(InterruptCause::MachineExternalInterrupt) => {
@@ -147,10 +158,10 @@ pub unsafe extern "C" fn trap_handler(mepc: usize, mcause: usize) -> usize {
             // polling_println!("[trap_handler] Returning...");
         }
         TrapCause::Interrupt(InterruptCause::Unknown) => {
-            // println!("Unknown interrupt");
+            polling_println!("Unknown interrupt：{}", mcause);
         }
         TrapCause::Exception(ExceptionCause::Unknown) => {
-            // println!("Unknown exception");
+            polling_println!("Unknown exception: {}", mcause);
         }
     }
     // polling_println!("exit trap handler");

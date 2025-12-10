@@ -23,12 +23,15 @@ use crate::console::_print;
 use crate::data_struct::ring_buf::RingBuffer;
 use crate::mm::{LockedAllocator, init_heap};
 use crate::system::SystemControl;
+use crate::task::SCHEDULER;
 use crate::task::context::TaskContext;
+use crate::task::scheduler::{Scheduler, trampoline};
 use crate::trap::interrupts::{init_machine_interrupts, set_mtimecmp};
 use crate::trap::{trap_entry, trap_handler};
 use core::arch::{asm, global_asm, naked_asm};
 use core::ptr::{read_volatile, write_volatile};
 use core::slice;
+use core::sync::atomic::{AtomicUsize, Ordering};
 use driver::{SerialPort, Uart}; // 引入 Trait 和统一的 Uart 类型
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -71,9 +74,9 @@ pub extern "C" fn rust_main() {
     // 清空 BSS 段
     clear_bss();
 
-    println!("Initializing heap...");
+    // println!("Initializing heap...");
     init_heap();
-    println!("Heap initialized.");
+    // println!("Heap initialized.");
 
     unsafe {
         asm!("csrw mscratch, {}", in(reg) &raw mut KERNEL_INIT_CONTEXT);
@@ -81,15 +84,62 @@ pub extern "C" fn rust_main() {
         asm!("csrw mtvec, {}", in(reg) mtvec_addr);
     }
     let vec = Vec::from([1, 2, 3]);
-    println!("vec 0: {}", vec[0]);
-    // polling_println!("vec: {:?}", vec.as_ptr() as *mut u8);
+    // println!("vec ptr: {:#X}", vec.as_ptr() as *const usize as usize);
+    // polling_println!("polling");
+
+    // 初始化调度器并创建 idle 任务
+    let _ = Scheduler::init();
+    // println!("✓ Scheduler initialized with idle task");
+
+    // 创建测试任务
+    {
+        let mut scheduler = SCHEDULER.lock();
+        scheduler
+            .spawn(test_task_a, 8192, 1)
+            .expect("Failed to spawn task A");
+        scheduler
+            .spawn(test_task_b, 8192, 1)
+            .expect("Failed to spawn task B");
+    } // 锁在这里释放
+
+    // println!("All tasks created. Starting scheduler...");
+    // println!("======================================================");
 
     unsafe {
         set_mtimecmp();
         init_machine_interrupts();
     }
+    println!("tram: {:X}", trampoline as usize);
     println!("Hello from Charlotte OS!");
+    Scheduler::run_scheduler();
+
     // loop {}
     let platform = QemuVirt;
     platform.shutdown();
+}
+#[unsafe(no_mangle)]
+pub extern "C" fn test_task_a() {
+    println!("[Task A] ✓ Start!");
+    let mut a = 0;
+    for _ in 0..10 {
+        // 模拟一些工作负载
+        for _ in 0..100000 {
+            // println!("[Task A] num is:{} ", a);
+            a += 1;
+            core::hint::spin_loop();
+        }
+    }
+    println!("[Task A] ✓ Finished!");
+}
+extern "C" fn test_task_b() {
+    println!("[Task B] ✓ Start!");
+    let mut b = 0;
+    for _ in 0..10 {
+        // 模拟一些工作负载
+        for _ in 0..100000 {
+            b += 1;
+            core::hint::spin_loop();
+        }
+    }
+    println!("[Task B] ✓ Finished!");
 }
