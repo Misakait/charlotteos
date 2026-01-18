@@ -1,5 +1,6 @@
 use crate::driver::plic::{InterruptRequest, PLIC};
 use crate::task::SCHEDULER;
+use crate::task::context::TaskContext;
 use crate::task::scheduler::Scheduler;
 use core::arch::{asm, naked_asm};
 
@@ -52,9 +53,10 @@ pub unsafe extern "C" fn trap_entry() {
         "csrr t6, mscratch", // 取回旧的 t6 (old_t6)
         "sd t6, 232(t5)",    // 保存 old_t6
         "csrw mscratch, t5", // 恢复 mscratch = &current_task_ctx
-        "csrr a0, mepc",     // 取出 mepc 到 a0，准备传给中断处理函数
+        "csrr a0, mepc",     // 取出 mepc 到 a0
         "sd a0, 240(t5)",    // 保存a0(即mepc)
         "csrr a1, mcause",   // 取出 mcause 到 a1，准备传给中断处理函数
+        "mv a0, t5",         // 将 Context 指针 (t5) 放入 a0 (作为第一个参数)
         "call trap_handler", // 调用中断处理函数
         "csrw mepc, a0",     // 将 mepc 恢复回去或者修改
         "csrr a0, mscratch", // 取出 &current_task_ctx 到 a0
@@ -103,7 +105,16 @@ pub enum TrapCause {
 
 #[derive(Debug)]
 pub enum ExceptionCause {
+    MEall,
     Unknown,
+}
+impl ExceptionCause {
+    fn from_code(code: usize) -> ExceptionCause {
+        match code {
+            11 => ExceptionCause::MEall,
+            _ => ExceptionCause::Unknown,
+        }
+    }
 }
 pub fn parse_trap_cause(mcause: usize) -> TrapCause {
     const INTERRUPT_BIT: usize = 1 << (usize::BITS - 1) as usize;
@@ -112,7 +123,7 @@ pub fn parse_trap_cause(mcause: usize) -> TrapCause {
     if is_interrupt {
         TrapCause::Interrupt(InterruptCause::from_code(code))
     } else {
-        TrapCause::Exception(ExceptionCause::Unknown)
+        TrapCause::Exception(ExceptionCause::from_code(code))
     }
 }
 fn plic_handler() {
@@ -132,7 +143,7 @@ fn plic_handler() {
     // polling_println!("[plic_handler] Returning...");
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn trap_handler(mepc: usize, mcause: usize) -> usize {
+pub unsafe extern "C" fn trap_handler(tcb: &mut TaskContext, mcause: usize) -> usize {
     // polling_println!("Welcome to Interrupt!");
     // println!("mepc: {:#x}, mcause: {:#x}", mepc, mcause);
     match parse_trap_cause(mcause) {
@@ -160,6 +171,20 @@ pub unsafe extern "C" fn trap_handler(mepc: usize, mcause: usize) -> usize {
         TrapCause::Interrupt(InterruptCause::Unknown) => {
             polling_println!("Unknown interrupt：{}", mcause);
         }
+        TrapCause::Exception(ExceptionCause::MEall) => unsafe {
+            let syscall_code = tcb.a7;
+            match syscall_code {
+                7 => {
+                    tcb.mepc = tcb.mepc + 4;
+
+                    let next_ctx_ptr = Scheduler::schedule_on_interrupt();
+                    asm!("csrw mscratch, {}", in(reg) next_ctx_ptr);
+                    // polling_println!("mecall7");
+                    return (*next_ctx_ptr).mepc;
+                }
+                _ => {}
+            }
+        },
         TrapCause::Exception(ExceptionCause::Unknown) => {
             polling_println!("Unknown exception: {}", mcause);
         }
@@ -168,5 +193,5 @@ pub unsafe extern "C" fn trap_handler(mepc: usize, mcause: usize) -> usize {
     // println!("trap handler addr: 0x{:x},trap entry addr :0x{:x}", trap_handler as usize,trap_entry as usize);
     // println!("mepc: 0x{:x}", mepc);
     // polling_println!("mepc: 0x{:x}", mepc);
-    mepc
+    tcb.mepc
 }

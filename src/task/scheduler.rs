@@ -16,6 +16,7 @@ use alloc::{
 };
 use core::{
     alloc::{GlobalAlloc, Layout, LayoutError},
+    arch::asm,
     cmp::Reverse,
     mem::transmute,
     ptr::NonNull,
@@ -204,8 +205,11 @@ impl Scheduler {
         // unsafe {
         // polling_println!("    ->aaa");
 
-        loop {
-            core::hint::spin_loop();
+        // loop {
+        //     core::hint::spin_loop();
+        // }
+        unsafe {
+            asm!("li a7, 7; ecall");
         }
         unreachable!();
     }
