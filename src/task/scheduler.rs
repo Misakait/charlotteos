@@ -10,12 +10,14 @@ use crate::{
     trap::trap_handler,
 };
 use alloc::{
+    boxed::Box,
     collections::{binary_heap::BinaryHeap, vec_deque::VecDeque},
     vec::Vec,
 };
 use core::{
     alloc::{GlobalAlloc, Layout, LayoutError},
     cmp::Reverse,
+    mem::transmute,
     ptr::NonNull,
 };
 
@@ -59,12 +61,16 @@ impl Scheduler {
         let mut scheduler = SCHEDULER.lock();
         scheduler.spawn(idle_task, 4096, 0)
     }
-    pub fn spawn(
+
+    pub fn spawn<F>(
         &mut self,
-        entry_point: extern "C" fn(),
+        task: F,
         stack_size: usize,
         priority: u8,
-    ) -> Result<(), SchedulerError> {
+    ) -> Result<(), SchedulerError>
+    where
+        F: FnOnce() + Send + 'static,
+    {
         let task_id = self
             .task_list
             .iter()
@@ -77,11 +83,19 @@ impl Scheduler {
         let stack_base = stack_ptr.as_ptr() as usize;
         let stack_top = (stack_base + stack_size) & !0xF; // 栈顶（高地址，对齐）
 
+        let task_box: Box<dyn FnOnce() + Send> = Box::new(task);
+        let raw_fat_ptr = Box::into_raw(task_box);
+
+        // Rust 的胖指针布局通常是 (data_ptr, vtable_ptr)
+        // 将其强转为 (usize, usize) 元组
+        let (data_ptr, vtable_ptr): (usize, usize) = unsafe { transmute(raw_fat_ptr) };
+
         let mut task_context = TaskContext::zero();
         //对齐到16字节
         task_context.sp = stack_top;
         task_context.ra = trampoline as usize;
-        task_context.a0 = entry_point as usize;
+        task_context.a0 = data_ptr;
+        task_context.a1 = vtable_ptr;
         task_context.mepc = trampoline as usize;
         //TODO: 若实现tls，则必须完成相关操作
         // task_context.ra = entry_point as *mut usize as usize;
@@ -89,7 +103,7 @@ impl Scheduler {
             task_id,
             stack_base: stack_ptr,
             layout,
-            entry_point,
+            entry_point: (data_ptr, vtable_ptr),
             priority,
             status: TaskStatus::Ready,
             context: task_context,
@@ -215,15 +229,19 @@ impl Scheduler {
     }
 }
 
-pub extern "C" fn trampoline(entry: extern "C" fn()) -> ! {
+pub extern "C" fn trampoline(data_ptr: usize, vtable_ptr: usize) -> ! {
     {
         let mut scheduler = SCHEDULER.lock();
         scheduler.mark_current_running();
     }
-    entry();
+    unsafe {
+        let raw_fat_ptr: *mut (dyn FnOnce() + Send + 'static) = transmute((data_ptr, vtable_ptr));
+        let task = Box::from_raw(raw_fat_ptr);
+        task();
+    }
     Scheduler::exit_current_task(); // 通知调度器该任务结束，永不返回
 }
-extern "C" fn idle_task() {
+fn idle_task() {
     loop {
         core::hint::spin_loop();
         // println!("idle!");

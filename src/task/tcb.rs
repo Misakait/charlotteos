@@ -13,7 +13,7 @@ pub enum TaskStatus {
 #[derive(Debug)]
 pub struct TaskControlBlock {
     pub task_id: usize,
-    pub entry_point: extern "C" fn(),
+    pub entry_point: (usize, usize),
     pub stack_base: NonNull<u8>,
     pub layout: Layout,
     pub priority: u8,

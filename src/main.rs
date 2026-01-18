@@ -116,8 +116,8 @@ pub extern "C" fn rust_main() {
     let platform = QemuVirt;
     platform.shutdown();
 }
-#[unsafe(no_mangle)]
-pub extern "C" fn test_task_a() {
+// #[unsafe(no_mangle)]
+fn test_task_a() {
     println!("[Task A] ✓ Start!");
     // println!("[Task A] ✓ Start!");
     let mut a = 0;
@@ -131,7 +131,7 @@ pub extern "C" fn test_task_a() {
     }
     println!("[Task A] ✓ Finished!");
 }
-extern "C" fn test_task_b() {
+fn test_task_b() {
     println!("[Task B] ✓ Start!");
     let mut b = 0;
     for _ in 0..10 {
