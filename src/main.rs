@@ -89,7 +89,7 @@ pub extern "C" fn rust_main() {
 
     // 初始化调度器并创建 idle 任务
     let _ = Scheduler::init();
-    // println!("✓ Scheduler initialized with idle task");
+    println!("✓ Scheduler initialized with idle task");
 
     // 创建测试任务
     {
@@ -109,7 +109,6 @@ pub extern "C" fn rust_main() {
         set_mtimecmp();
         init_machine_interrupts();
     }
-    println!("tram: {:X}", trampoline as usize);
     println!("Hello from Charlotte OS!");
     Scheduler::run_scheduler();
 
@@ -120,6 +119,7 @@ pub extern "C" fn rust_main() {
 #[unsafe(no_mangle)]
 pub extern "C" fn test_task_a() {
     println!("[Task A] ✓ Start!");
+    // println!("[Task A] ✓ Start!");
     let mut a = 0;
     for _ in 0..10 {
         // 模拟一些工作负载

@@ -79,6 +79,20 @@ pub fn enable_machine_interrupts() {
         asm!("csrsi mstatus, 8");
     }
 }
+pub fn get_time_ms() -> usize {
+    let current_mtime: usize;
+    unsafe {
+        asm!(
+        "ld {0}, 0({1})",          // 从mtime地址加载64位值到寄存器
+        out(reg) current_mtime,    // 输出：当前mtime值
+        in(reg) MTIME_ADDR,             // 输入：mtime的内存地址
+        options(nostack, readonly) // 选项：不使用栈，只读操作
+        );
+
+        const TICKS_PER_MS: usize = RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ as usize / 1000;
+        current_mtime / TICKS_PER_MS
+    }
+}
 pub unsafe fn set_mtimecmp() {
     unsafe {
         //0.01即10毫秒
