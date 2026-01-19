@@ -1,4 +1,5 @@
 use crate::driver::plic::{InterruptRequest, PLIC};
+use crate::syslib::syscall::{schedule, sleep};
 use crate::task::SCHEDULER;
 use crate::task::context::TaskContext;
 use crate::task::scheduler::Scheduler;
@@ -7,7 +8,7 @@ use core::arch::{asm, naked_asm};
 use crate::trap::interrupts::service::uart_service::uart_interrupt_handler;
 #[cfg(feature = "uart_interrupt")]
 use crate::trap::interrupts::service::uart_service::{UART_SERVICE, UartService};
-use crate::trap::interrupts::{InterruptCause, set_mtimecmp};
+use crate::trap::interrupts::{InterruptCause, get_mtime, set_mtimecmp};
 use crate::{polling_print, polling_println, println};
 
 pub mod interrupts;
@@ -149,7 +150,12 @@ pub unsafe extern "C" fn trap_handler(tcb: &mut TaskContext, mcause: usize) -> u
     match parse_trap_cause(mcause) {
         TrapCause::Interrupt(InterruptCause::MachineTimerInterrupt) => {
             // println!("Welcome to Time Interrupt!");
-            polling_println!("Welcome to Time Interrupt!");
+            // polling_println!("Welcome to Time Interrupt!");
+            let current_mtime = get_mtime();
+            {
+                let mut scheduler = SCHEDULER.lock();
+                scheduler.finish_sleep(current_mtime);
+            }
             unsafe {
                 set_mtimecmp();
             }
@@ -174,14 +180,8 @@ pub unsafe extern "C" fn trap_handler(tcb: &mut TaskContext, mcause: usize) -> u
         TrapCause::Exception(ExceptionCause::MEall) => unsafe {
             let syscall_code = tcb.a7;
             match syscall_code {
-                7 => {
-                    tcb.mepc = tcb.mepc + 4;
-
-                    let next_ctx_ptr = Scheduler::schedule_on_interrupt();
-                    asm!("csrw mscratch, {}", in(reg) next_ctx_ptr);
-                    // polling_println!("mecall7");
-                    return (*next_ctx_ptr).mepc;
-                }
+                7 => return schedule(tcb),
+                17 => return sleep(tcb),
                 _ => {}
             }
         },

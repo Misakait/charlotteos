@@ -8,9 +8,11 @@ mod data_struct;
 mod driver;
 mod lang_items;
 mod mm;
+mod syslib;
 mod system;
 mod task;
 mod trap;
+mod userlib;
 
 use alloc::vec::Vec;
 // use lang_items::*;
@@ -28,6 +30,7 @@ use crate::task::context::TaskContext;
 use crate::task::scheduler::{Scheduler, trampoline};
 use crate::trap::interrupts::{init_machine_interrupts, set_mtimecmp};
 use crate::trap::{trap_entry, trap_handler};
+use crate::userlib::syscall::sys_sleep;
 use core::arch::{asm, global_asm, naked_asm};
 use core::ptr::{read_volatile, write_volatile};
 use core::slice;
@@ -141,5 +144,6 @@ fn test_task_b() {
             core::hint::spin_loop();
         }
     }
+    sys_sleep(10000);
     println!("[Task B] ✓ Finished!");
 }

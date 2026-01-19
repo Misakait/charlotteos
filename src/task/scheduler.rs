@@ -35,7 +35,7 @@ impl From<LayoutError> for SchedulerError {
 }
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct SleepEntry {
-    wake_tick: usize,
+    wake_time: usize,
     task_id: usize,
 }
 
@@ -117,9 +117,50 @@ impl Scheduler {
         self.ready_queue.push_back(task_id);
         Ok(())
     }
+    pub fn set_current_task_sleep(&mut self, wake_time: usize) -> *mut TaskContext {
+        let current_id = self.current_task_id;
 
+        if let Some(cur) = current_id {
+            if let Some(tcb) = self.task_list[cur].as_mut() {
+                if matches!(tcb.status, TaskStatus::Running) {
+                    tcb.status = TaskStatus::Blocked;
+                    self.blocked_queue.push(Reverse(SleepEntry {
+                        wake_time,
+                        task_id: cur,
+                    }));
+                    let mut next_id = self.ready_queue.pop_front().unwrap_or(0);
+                    if next_id == 0 && !self.ready_queue.is_empty() {
+                        next_id = self.ready_queue.pop_front().unwrap();
+                        self.ready_queue.push_back(0);
+                    }
+                    let next_tcb = self.task_list[next_id].as_mut().expect("next task missing");
+                    next_tcb.status = TaskStatus::Running;
+                    self.current_task_id = Some(next_id);
+                    return &mut next_tcb.context as *mut TaskContext;
+                }
+            }
+        }
+        unreachable!();
+    }
+    pub fn finish_sleep(&mut self, current_mtime: usize) {
+        loop {
+            if let Some(Reverse(entry)) = self.blocked_queue.peek() {
+                if entry.wake_time > current_mtime {
+                    break;
+                }
+            } else {
+                break;
+            }
+            // 堆顶任务 wake_time <= current_mtime
+            let Reverse(entry) = self.blocked_queue.pop().unwrap();
+            if let Some(tcb) = self.task_list[entry.task_id].as_mut() {
+                tcb.status = TaskStatus::Ready;
+                self.ready_queue.push_back(entry.task_id);
+            }
+        }
+    }
     fn prepare_next_task(&mut self) -> *mut TaskContext {
-        // 回收僵尸任务，但跳过当前任务（如果它刚退出的话）
+        // 回收僵尸任务，但跳过当前任务（如果它刚退出的话）z
         // 因为我们还在当前任务的栈上运行，不能立刻释放它
         let current_id = self.current_task_id;
         // polling_println!(
@@ -128,7 +169,7 @@ impl Scheduler {
         //     self.ready_queue,
         //     self.task_list
         // );
-        polling_println!("before: {:?}", self.current_task_id);
+        // polling_println!("before: {:?}", self.current_task_id);
         // 一次性处理队列中的所有僵尸，遇到当前任务就提前终止循环
         let queue_len = self.zombie_queue.len();
         for _ in 0..queue_len {
@@ -173,7 +214,7 @@ impl Scheduler {
         let next_tcb = self.task_list[next_id].as_mut().expect("next task missing");
         next_tcb.status = TaskStatus::Running;
         self.current_task_id = Some(next_id);
-        polling_println!("after: {:?}", self.current_task_id);
+        // polling_println!("after: {:?}", self.current_task_id);
         &mut next_tcb.context as *mut TaskContext
         // unsafe {
         //     __switch_to(next_ctx_ptr);
