@@ -101,6 +101,8 @@ impl SerialPort for Uart {
             write_volatile(dlm_ptr, 0x00); // 设置波特率为38400
             //数据格式设置为 “8 位数据位、1 位停止位、无校验”
             write_volatile(lcr_ptr, 0x03u8);
+            let current_ier = read_volatile(ier_ptr);
+            write_volatile(ier_ptr, current_ier | 0x01); // 使能接收中断
         }
     }
 

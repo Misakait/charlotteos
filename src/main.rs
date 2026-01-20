@@ -30,7 +30,7 @@ use crate::task::context::TaskContext;
 use crate::task::scheduler::{Scheduler, trampoline};
 use crate::trap::interrupts::{init_machine_interrupts, set_mtimecmp};
 use crate::trap::{trap_entry, trap_handler};
-use crate::userlib::syscall::sys_sleep;
+use crate::userlib::syscall::{sys_read, sys_sleep};
 use core::arch::{asm, global_asm, naked_asm};
 use core::ptr::{read_volatile, write_volatile};
 use core::slice;
@@ -97,12 +97,15 @@ pub extern "C" fn rust_main() {
     // 创建测试任务
     {
         let mut scheduler = SCHEDULER.lock();
+        // scheduler
+        //     .spawn(test_task_a, 8192, 1)
+        //     .expect("Failed to spawn task A");
+        // scheduler
+        //     .spawn(test_task_b, 8192, 1)
+        //     .expect("Failed to spawn task B");
         scheduler
-            .spawn(test_task_a, 8192, 1)
-            .expect("Failed to spawn task A");
-        scheduler
-            .spawn(test_task_b, 8192, 1)
-            .expect("Failed to spawn task B");
+            .spawn(shell, 8192, 1)
+            .expect("Failed to spawn task shell");
     } // 锁在这里释放
 
     // println!("All tasks created. Starting scheduler...");
@@ -146,4 +149,15 @@ fn test_task_b() {
     }
     sys_sleep(10000);
     println!("[Task B] ✓ Finished!");
+}
+fn shell() {
+    println!("shell Start!");
+    // loop {
+    let char = sys_read(usize::MAX);
+    if char != -1 {
+        println!("read a char:{}", char as u8 as char);
+        // break;
+    }
+    // }
+    println!("shell ✓ Finished!");
 }

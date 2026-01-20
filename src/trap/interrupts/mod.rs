@@ -28,8 +28,8 @@ pub unsafe fn init_machine_interrupts() {
         // 开启 M 模式下的中断总开关 (mstatus.MIE)
         //此处的8为1 << 3
         asm!("csrsi mstatus, 8");
-        //使能时钟中断
 
+        //使能时钟中断
         asm!(
         // 使用 csrrs (Read and Set) 指令
         // 它会将 mie 的值与我们传入的寄存器值进行 OR 操作
@@ -38,6 +38,7 @@ pub unsafe fn init_machine_interrupts() {
         out(reg) _,             // 对应 {0}
         in(reg) MIE_MTIE_MASK,  // 对应 {1}，编译器会自动将 MIE_MTIE_MASK 放入一个寄存器
         );
+
         //使能外部中断
         asm!(
         // 使用 csrrs (Read and Set) 指令

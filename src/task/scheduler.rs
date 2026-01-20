@@ -58,6 +58,10 @@ impl Scheduler {
             blocked_queue: BinaryHeap::new(),
         }
     }
+    pub fn get_current_task_id(&self) -> TaskId {
+        self.current_task_id.unwrap()
+    }
+
     pub fn init() -> Result<(), SchedulerError> {
         let mut scheduler = SCHEDULER.lock();
         scheduler.spawn(idle_task, 4096, 0)
@@ -142,6 +146,45 @@ impl Scheduler {
         }
         unreachable!();
     }
+    pub fn set_task_ready(&mut self, task_id: usize) {
+        if let Some(tcb) = self.task_list[task_id].as_mut() {
+            if matches!(tcb.status, TaskStatus::Blocked) {
+                // 这里不删除堆中的元素，留给finish_sleep自动pop出去
+                tcb.status = TaskStatus::Ready;
+                self.ready_queue.push_back(task_id);
+            }
+        }
+    }
+    pub fn wake_up_task_with_result(&mut self, task_id: usize, result: u8) {
+        if let Some(tcb) = self.task_list[task_id].as_mut() {
+            if matches!(tcb.status, TaskStatus::Blocked) {
+                tcb.status = TaskStatus::Ready;
+                tcb.context.a0 = result as usize; // 将字符写入任务上下文的 a0
+                self.ready_queue.push_back(task_id);
+            }
+        }
+    }
+    pub fn block_current_task(&mut self) -> *mut TaskContext {
+        let current_id = self.current_task_id;
+
+        if let Some(cur) = current_id {
+            if let Some(tcb) = self.task_list[cur].as_mut() {
+                if matches!(tcb.status, TaskStatus::Running) {
+                    tcb.status = TaskStatus::Blocked;
+                    let mut next_id = self.ready_queue.pop_front().unwrap_or(0);
+                    if next_id == 0 && !self.ready_queue.is_empty() {
+                        next_id = self.ready_queue.pop_front().unwrap();
+                        self.ready_queue.push_back(0);
+                    }
+                    let next_tcb = self.task_list[next_id].as_mut().expect("next task missing");
+                    next_tcb.status = TaskStatus::Running;
+                    self.current_task_id = Some(next_id);
+                    return &mut next_tcb.context as *mut TaskContext;
+                }
+            }
+        }
+        unreachable!();
+    }
     pub fn finish_sleep(&mut self, current_mtime: usize) {
         loop {
             if let Some(Reverse(entry)) = self.blocked_queue.peek() {
@@ -154,8 +197,10 @@ impl Scheduler {
             // 堆顶任务 wake_time <= current_mtime
             let Reverse(entry) = self.blocked_queue.pop().unwrap();
             if let Some(tcb) = self.task_list[entry.task_id].as_mut() {
-                tcb.status = TaskStatus::Ready;
-                self.ready_queue.push_back(entry.task_id);
+                if matches!(tcb.status, TaskStatus::Blocked) {
+                    tcb.status = TaskStatus::Ready;
+                    self.ready_queue.push_back(entry.task_id);
+                }
             }
         }
     }

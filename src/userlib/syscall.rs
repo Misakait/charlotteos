@@ -10,3 +10,15 @@ pub fn sys_sleep(ms: usize) {
         );
     }
 }
+pub fn sys_read(ms: usize) -> isize {
+    let ret: isize;
+    unsafe {
+        asm!(
+            "ecall",
+            in("a7") 27,
+            inout("a0") ms => ret,
+            options(nostack)
+        );
+    }
+    ret
+}

@@ -1,6 +1,10 @@
 use crate::bsp::qemu_virt::{ISR, LSR, RHR, THR, UART_BASE};
 use crate::data_struct::ring_buf::RingBuffer;
+use crate::task::SCHEDULER;
+use crate::task::scheduler::Scheduler;
 use crate::{UART, polling_print, polling_println};
+#[cfg(feature = "uart_interrupt")]
+use alloc::collections::vec_deque::VecDeque;
 use core::fmt::Write;
 use core::ptr::{read_volatile, write_volatile};
 use spin::mutex::SpinMutex;
@@ -12,6 +16,7 @@ pub static UART_SERVICE: UartService = UartService::new();
 pub struct UartService {
     pub receive_buffer: SpinMutex<RingBuffer<u8, 4096>>,
     pub transmit_buffer: SpinMutex<RingBuffer<u8, 4096>>,
+    pub wait_queue: SpinMutex<VecDeque<usize>>,
 }
 #[cfg(feature = "uart_interrupt")]
 impl UartService {
@@ -19,6 +24,7 @@ impl UartService {
         UartService {
             receive_buffer: SpinMutex::<RingBuffer<u8, 4096>>::new(RingBuffer::<u8, 4096>::new()),
             transmit_buffer: SpinMutex::<RingBuffer<u8, 4096>>::new(RingBuffer::<u8, 4096>::new()),
+            wait_queue: SpinMutex::<VecDeque<usize>>::new(VecDeque::new()),
         }
     }
     pub fn send_data(&self) {
@@ -58,7 +64,6 @@ const ISR_RX_AVAILABLE: u8 = 0b0000_0100; // RXRDY (接收数据)
 const ISR_TX_EMPTY: u8 = 0b0000_0010; // TXRDY (发送空)
 const ISR_LINE_STATUS: u8 = 0b0000_0110; // LSR (线路状态)
 
-// 这是你的中断分诊函数
 pub fn uart_interrupt_handler() {
     let isr_ptr = (UART_BASE + ISR) as *mut u8;
     let isr_val = unsafe { read_volatile(isr_ptr) };
@@ -79,7 +84,17 @@ pub fn uart_interrupt_handler() {
             // 这是接收中断，【必须】读取 RHR 来清除中断
             let rbr_ptr = (UART_BASE + RHR) as *mut u8;
             unsafe {
-                let _received_char = read_volatile(rbr_ptr);
+                let received_char = read_volatile(rbr_ptr);
+                //TODO：未来可做硬件流控
+
+                // polling_println!("receive:{}", received_char as char);
+                if let Some(task_id) = UART_SERVICE.wait_queue.lock().pop_back() {
+                    SCHEDULER
+                        .lock()
+                        .wake_up_task_with_result(task_id, received_char);
+                } else {
+                    let _ = UART_SERVICE.receive_buffer.lock().push(received_char);
+                }
             }
         }
         ISR_LINE_STATUS => {
@@ -89,6 +104,8 @@ pub fn uart_interrupt_handler() {
                 let _ = read_volatile(lsr_ptr);
             }
         }
-        _ => {}
+        _ => {
+            polling_println!("cause:{}", cause);
+        }
     }
 }

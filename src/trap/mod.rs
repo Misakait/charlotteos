@@ -1,5 +1,5 @@
 use crate::driver::plic::{InterruptRequest, PLIC};
-use crate::syslib::syscall::{schedule, sleep};
+use crate::syslib::syscall::{schedule, sleep, uart_read};
 use crate::task::SCHEDULER;
 use crate::task::context::TaskContext;
 use crate::task::scheduler::Scheduler;
@@ -177,14 +177,15 @@ pub unsafe extern "C" fn trap_handler(tcb: &mut TaskContext, mcause: usize) -> u
         TrapCause::Interrupt(InterruptCause::Unknown) => {
             polling_println!("Unknown interrupt：{}", mcause);
         }
-        TrapCause::Exception(ExceptionCause::MEall) => unsafe {
+        TrapCause::Exception(ExceptionCause::MEall) => {
             let syscall_code = tcb.a7;
             match syscall_code {
                 7 => return schedule(tcb),
                 17 => return sleep(tcb),
+                27 => return uart_read(tcb),
                 _ => {}
             }
-        },
+        }
         TrapCause::Exception(ExceptionCause::Unknown) => {
             polling_println!("Unknown exception: {}", mcause);
         }
