@@ -2,11 +2,11 @@
 
 # 定义内核文件路径 (请根据您的编译模式修改 debug 或 release)
 KERNEL="target/riscv64gc-unknown-none-elf/release/charlotte_os"
-
+BIOS="rustsbi.bin"
 # 1. 首先，编译项目以确保内核文件是最新的
 #    我们传递脚本收到的所有参数 (例如 --release) 给 cargo build
 cargo build --release
-
+# cargo build
 # 2. 检查编译是否成功
 if [ $? -ne 0 ]; then
     echo "编译失败，调试会话中止。"
@@ -19,7 +19,7 @@ qemu-system-riscv64 \
     -machine virt \
     -nographic \
     -smp 1 \
-    -bios none \
+    -bios $BIOS \
     -kernel $KERNEL \
     -S \
     -s &

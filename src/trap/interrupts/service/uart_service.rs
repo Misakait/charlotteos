@@ -85,6 +85,9 @@ pub fn uart_interrupt_handler() {
             let rbr_ptr = (UART_BASE + RHR) as *mut u8;
             unsafe {
                 let received_char = read_volatile(rbr_ptr);
+                if received_char >= 0x80 {
+                    return;
+                }
                 //TODO：未来可做硬件流控
 
                 // polling_println!("receive:{}", received_char as char);

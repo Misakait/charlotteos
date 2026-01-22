@@ -18,8 +18,9 @@ pub const PLIC_PENDING_BASE: usize = PLIC_BASE + 0x1000;
 pub const PLIC_ENABLE_BASE: usize = PLIC_BASE + 0x2000;
 //每个中断源占用的字节数
 pub const PLIC_ENABLE_STRIDE: usize = 0x80;
-pub fn plic_enable_addr(hart_id: usize,irq: usize) -> usize {
-    PLIC_ENABLE_BASE + (hart_id) * PLIC_ENABLE_STRIDE + (irq / 32) * 4
+pub fn plic_enable_addr(hart_id: usize, irq: usize) -> usize {
+    let context_id = plic_context_id_s(hart_id);
+    PLIC_ENABLE_BASE + context_id * PLIC_ENABLE_STRIDE + (irq / 32) * 4
 }
 
 //PLIC上下文相关寄存器区地址
@@ -27,16 +28,18 @@ pub const PLIC_CONTEXT_BASE: usize = PLIC_BASE + 0x200_000;
 //每个上下文相关寄存器占用的字节数
 pub const PLIC_CONTEXT_STRIDE: usize = 0x1000;
 pub fn plic_context_addr(hart_id: usize) -> usize {
-    PLIC_CONTEXT_BASE + (hart_id) * PLIC_CONTEXT_STRIDE
+    let context_id = plic_context_id_s(hart_id);
+    PLIC_CONTEXT_BASE + context_id * PLIC_CONTEXT_STRIDE
 }
 pub const PLIC_CLAIM_COMPLETE_OFFSET: usize = 0x200_004;
 pub fn plic_claim_complete_addr(hart_id: usize) -> usize {
-    PLIC_BASE + PLIC_CLAIM_COMPLETE_OFFSET + hart_id * PLIC_CONTEXT_STRIDE
+    let context_id = plic_context_id_s(hart_id);
+    PLIC_BASE + PLIC_CLAIM_COMPLETE_OFFSET + context_id * PLIC_CONTEXT_STRIDE
 }
 pub const MTIME_OFFSET: usize = 0xBFF8;
 // pub const MTIME_OFFSET: usize = 0x7FF8;
 pub const MTIME_ADDR: usize = CLINT_BASE + MTIME_OFFSET;
-pub const MTIMECMP_OFFSET: usize = 0x4000 ;
+pub const MTIMECMP_OFFSET: usize = 0x4000;
 pub const MTIMECMP_BASE: usize = CLINT_BASE + MTIMECMP_OFFSET;
 pub const fn get_mtimecmp_addr(hart_id: i8) -> usize {
     MTIMECMP_BASE + (hart_id * 8) as usize
@@ -44,33 +47,38 @@ pub const fn get_mtimecmp_addr(hart_id: i8) -> usize {
 //默认时钟频率为 10MHz
 pub const RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ: usize = 10_000_000;
 
+#[inline]
+pub const fn plic_context_id_s(hart_id: usize) -> usize {
+    hart_id * 2 + 1
+}
+
 //DLAB = 1
 // LSB of Divisor Latch (write mode)
-pub const DLL :usize = 0;
+pub const DLL: usize = 0;
 // MSB of Divisor Latch (write mode)
-pub const DLM :usize = 1;
+pub const DLM: usize = 1;
 
 // DLAB = 0
 pub const RHR: usize = 0; //Receive Holding Register (read mode)
 // Transmit Holding Register (write mode)
-pub const THR :usize = 0;
+pub const THR: usize = 0;
 // Interrupt Enable Register (write mode)
-pub const IER :usize = 1;
+pub const IER: usize = 1;
 
 // FIFO Control Register (write mode)
-pub const FCR :usize = 2;
+pub const FCR: usize = 2;
 // Interrupt Status Register (read mode)
-pub const ISR :usize = 2;
+pub const ISR: usize = 2;
 // Line Control Register
-pub const LCR :usize = 3;
+pub const LCR: usize = 3;
 // Modem Control Register
-pub const MCR :usize = 4;
+pub const MCR: usize = 4;
 // Line Status Register
-pub const LSR :usize = 5;
+pub const LSR: usize = 5;
 // Modem Status Register
-pub const MSR :usize = 6;
+pub const MSR: usize = 6;
 // ScratchPad Register
-pub const SPR :usize = 7;
+pub const SPR: usize = 7;
 
 // QEMU virt 平台的 TEST 设备地址
 pub const VIRT_TEST_ADDR: usize = 0x100000;
@@ -100,5 +108,4 @@ impl SystemControl for QemuVirt {
         }
         loop {}
     }
-    
 }

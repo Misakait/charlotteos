@@ -14,27 +14,18 @@ mod task;
 mod trap;
 mod userlib;
 
+use crate::bsp::qemu_virt::UART_BASE;
 use alloc::vec::Vec;
-// use lang_items::*;
-use crate::bsp::get_hart_id;
-use crate::bsp::qemu_virt::{
-    IER, MTIME_ADDR, QemuVirt, RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ, UART_BASE, UART0_IRQ,
-    get_mtimecmp_addr, plic_context_addr, plic_enable_addr, plic_priority_addr,
-};
-use crate::console::_print;
-use crate::data_struct::ring_buf::RingBuffer;
-use crate::mm::{LockedAllocator, init_heap};
-use crate::system::SystemControl;
+
+use crate::mm::init_heap;
 use crate::task::SCHEDULER;
 use crate::task::context::TaskContext;
-use crate::task::scheduler::{Scheduler, trampoline};
-use crate::trap::interrupts::{init_machine_interrupts, set_mtimecmp};
-use crate::trap::{trap_entry, trap_handler};
+use crate::task::scheduler::Scheduler;
+use crate::trap::interrupts::{init_supervisor_interrupts, set_next_timer_tick};
+use crate::trap::trap_entry;
 use crate::userlib::syscall::{sys_read, sys_sleep};
-use core::arch::{asm, global_asm, naked_asm};
-use core::ptr::{read_volatile, write_volatile};
+use core::arch::{asm, global_asm};
 use core::slice;
-use core::sync::atomic::{AtomicUsize, Ordering};
 use driver::{SerialPort, Uart}; // 引入 Trait 和统一的 Uart 类型
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -82,14 +73,14 @@ pub extern "C" fn rust_main() {
     // println!("Heap initialized.");
 
     unsafe {
-        asm!("csrw mscratch, {}", in(reg) &raw mut KERNEL_INIT_CONTEXT);
-        let mtvec_addr = (trap_entry as usize) & !0x3;
-        asm!("csrw mtvec, {}", in(reg) mtvec_addr);
+        asm!("csrw sscratch, {}", in(reg) &raw mut KERNEL_INIT_CONTEXT);
+        let stvec_addr = (trap_entry as usize) & !0x3;
+        asm!("csrw stvec, {}", in(reg) stvec_addr);
     }
     let vec = Vec::from([1, 2, 3]);
     // println!("vec ptr: {:#X}", vec.as_ptr() as *const usize as usize);
     // polling_println!("polling");
-
+    println!("Hello from Charlotte OS!");
     // 初始化调度器并创建 idle 任务
     let _ = Scheduler::init();
     println!("✓ Scheduler initialized with idle task");
@@ -97,35 +88,33 @@ pub extern "C" fn rust_main() {
     // 创建测试任务
     {
         let mut scheduler = SCHEDULER.lock();
-        // scheduler
-        //     .spawn(test_task_a, 8192, 1)
-        //     .expect("Failed to spawn task A");
-        // scheduler
-        //     .spawn(test_task_b, 8192, 1)
-        //     .expect("Failed to spawn task B");
         scheduler
-            .spawn(shell, 8192, 1)
-            .expect("Failed to spawn task shell");
+            .spawn(test_task_a, 8192, 1)
+            .expect("Failed to spawn task A");
+        scheduler
+            .spawn(test_task_b, 8192, 1)
+            .expect("Failed to spawn task B");
+        // scheduler
+        //     .spawn(shell, 8192, 1)
+        //     .expect("Failed to spawn task shell");
     } // 锁在这里释放
 
-    // println!("All tasks created. Starting scheduler...");
-    // println!("======================================================");
-
+    println!("All tasks created. Starting scheduler...");
+    println!("======================================================");
     unsafe {
-        set_mtimecmp();
-        init_machine_interrupts();
+        set_next_timer_tick();
+        init_supervisor_interrupts();
     }
-    println!("Hello from Charlotte OS!");
+
+    // sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::NoReason);
     Scheduler::run_scheduler();
 
     // loop {}
-    let platform = QemuVirt;
-    platform.shutdown();
+    sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::NoReason);
 }
 // #[unsafe(no_mangle)]
 fn test_task_a() {
-    println!("[Task A] ✓ Start!");
-    // println!("[Task A] ✓ Start!");
+    user_println!("[Task A] ✓ Start!");
     let mut a = 0;
     for _ in 0..10 {
         // 模拟一些工作负载
@@ -135,10 +124,12 @@ fn test_task_a() {
             core::hint::spin_loop();
         }
     }
-    println!("[Task A] ✓ Finished!");
+    // println!("[Task A] ✓ Finished!");
+    user_println!("[Task A] ✓ Finished!");
 }
 fn test_task_b() {
-    println!("[Task B] ✓ Start!");
+    // println!("[Task B] ✓ Start!");
+    user_println!("[Task B] ✓ Start!");
     let mut b = 0;
     for _ in 0..10 {
         // 模拟一些工作负载
@@ -148,16 +139,21 @@ fn test_task_b() {
         }
     }
     sys_sleep(10000);
-    println!("[Task B] ✓ Finished!");
+    // println!("[Task B] ✓ Finished!");
+    user_println!("[Task B] ✓ Finished!");
 }
 fn shell() {
-    println!("shell Start!");
+    // println!("shell Start!");
+    user_println!("shell Start!");
     // loop {
-    let char = sys_read(usize::MAX);
-    if char != -1 {
-        println!("read a char:{}", char as u8 as char);
+    let char = sys_read(5000);
+    if char > 0 {
+        // println!("read a char:{},ascii {}", char as u8 as char, char);
+        // user_println!("read a char:{},ascii {}", char as u8 as char, char);
+        user_println!("read a ,ascii {}", char);
         // break;
     }
     // }
-    println!("shell ✓ Finished!");
+    // println!("shell ✓ Finished!");
+    user_println!("shell ✓ Finished!");
 }

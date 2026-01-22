@@ -1,11 +1,33 @@
-use crate::UART;
 use crate::bsp::qemu_virt::{LSR, THR, UART_BASE};
+use crate::{UART, userlib::syscall::sys_write_byte};
 // use crate::driver::Uart; // 引入统一的 Uart 类型
 use core::fmt::{self, Write};
 use core::ptr::{read_volatile, write_volatile};
 
 pub fn _print(args: fmt::Arguments) {
     UART.lock().write_fmt(args).unwrap();
+}
+
+pub fn user_print(args: fmt::Arguments) {
+    struct UserWriter;
+    impl Write for UserWriter {
+        fn write_str(&mut self, s: &str) -> fmt::Result {
+            for byte in s.bytes() {
+                sys_write_byte(byte);
+            }
+            Ok(())
+        }
+    }
+    UserWriter.write_fmt(args).unwrap();
+}
+#[macro_export]
+macro_rules! user_print {
+    ($($arg:tt)*) => ($crate::console::user_print(format_args!($($arg)*)));
+}
+#[macro_export]
+macro_rules! user_println {
+    () => ($crate::user_print!("\n"));
+    ($($arg:tt)*) => ($crate::user_print!("{}\n", format_args!($($arg)*)));
 }
 
 #[macro_export]

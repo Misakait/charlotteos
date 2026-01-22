@@ -10,7 +10,8 @@ _start:
 	# park harts with id != 0
 	# 让非 0 号核心“待命”
 
-	csrr	t0, mhartid		# 读 CSR 寄存器 mhartid，获取当前核心的ID，存入 t0 寄存器
+	# RustSBI 会通过 a0 传递 hartid
+	mv	t0, a0			# 将 hartid 复制到 t0
 	mv	tp, t0			# 将核心ID从 t0 移到 tp 寄存器中备份，以便后续使用
 	bnez	t0, park		# bnez (Branch if Not Equal to Zero): 如果 t0 不为零（即核心ID不是0），则跳转到 park 标签
 

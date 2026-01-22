@@ -1,53 +1,55 @@
-use core::{arch::asm, future::Ready, mem::transmute, usize};
+use core::{arch::asm, usize};
 
 use crate::{
-    UART,
-    bsp::qemu_virt::{MTIME_ADDR, RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ, VIRT_TEST_ADDR},
+    bsp::qemu_virt::RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ,
     driver::SerialPort,
-    polling_println,
     task::{SCHEDULER, context::TaskContext, scheduler::Scheduler},
-    trap::interrupts::{get_mtime, service::uart_service::UART_SERVICE},
+    trap::interrupts::{get_time, service::uart_service::UART_SERVICE},
+    UART,
 };
 
 pub fn schedule(tcb: &mut TaskContext) -> usize {
-    tcb.mepc = tcb.mepc + 4;
+    tcb.sepc = tcb.sepc + 4;
 
     let next_ctx_ptr = Scheduler::schedule_on_interrupt();
     unsafe {
-        asm!("csrw mscratch, {}", in(reg) next_ctx_ptr);
-        (*next_ctx_ptr).mepc
+        asm!("csrw sscratch, {}", in(reg) next_ctx_ptr);
+        (*next_ctx_ptr).sepc
     }
 }
 
 pub fn sleep(tcb: &mut TaskContext) -> usize {
     unsafe {
-        tcb.mepc = tcb.mepc + 4;
+        tcb.sepc = tcb.sepc + 4;
         let sleep_ms = tcb.a0;
         const ONE_MS_CYCLES: usize = (RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ / 1000) as usize;
-        let current_mtime = get_mtime();
-        let target_mtime = current_mtime + sleep_ms * ONE_MS_CYCLES;
+        let current_time = get_time();
+        let target_time = current_time + sleep_ms * ONE_MS_CYCLES;
         let mut scheduler = SCHEDULER.lock();
-        let next_ctx = scheduler.set_current_task_sleep(target_mtime);
-        asm!("csrw mscratch, {}", in(reg) next_ctx);
-        return (*next_ctx).mepc;
+        let next_ctx = scheduler.set_current_task_sleep(target_time);
+        asm!("csrw sscratch, {}", in(reg) next_ctx);
+        return (*next_ctx).sepc;
     }
 }
 
 pub fn uart_read(ctx: &mut TaskContext) -> usize {
     let timeout_ms = ctx.a0; // 约定：-1 (usize::MAX) 代表无限阻塞
-    ctx.mepc += 4;
+    ctx.sepc += 4;
     let mut receive_buffer = UART_SERVICE.receive_buffer.lock();
     if let Some(c) = receive_buffer.pop() {
+        if c >= 0x80 {
+            ctx.a0 = usize::MAX;
+            return ctx.sepc;
+        }
         ctx.a0 = c as usize;
-        // ctx.mepc += 4;
-        return ctx.mepc;
+        return ctx.sepc;
     }
     drop(receive_buffer);
 
     if timeout_ms == 0 {
         // 非阻塞模式：没数据直接返回失败
         ctx.a0 = usize::MAX;
-        return ctx.mepc;
+        return ctx.sepc;
     }
 
     // 阻塞或超时模式
@@ -58,8 +60,12 @@ pub fn uart_read(ctx: &mut TaskContext) -> usize {
     if !receive_buffer.is_empty() {
         UART_SERVICE.wait_queue.lock().pop_back(); // 撤销入队
         let c = receive_buffer.pop().unwrap();
+        if c >= 0x80 {
+            ctx.a0 = usize::MAX;
+            return ctx.sepc;
+        }
         ctx.a0 = c as usize;
-        return ctx.mepc;
+        return ctx.sepc;
     }
     drop(receive_buffer);
     let mut scheduler = SCHEDULER.lock();
@@ -69,20 +75,28 @@ pub fn uart_read(ctx: &mut TaskContext) -> usize {
     if timeout_ms < usize::MAX {
         // 带超时：计算唤醒时间并加入定时器堆
         const ONE_MS_CYCLES: usize = RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ / 1000;
-        let current_mtime = get_mtime();
-        let wake_time = current_mtime + timeout_ms * ONE_MS_CYCLES;
+        let current_time = get_time();
+        let wake_time = current_time + timeout_ms * ONE_MS_CYCLES;
 
         let next_ctx = scheduler.set_current_task_sleep(wake_time);
         unsafe {
-            asm!("csrw mscratch, {}", in(reg) next_ctx);
-            return (*next_ctx).mepc;
+            asm!("csrw sscratch, {}", in(reg) next_ctx);
+            return (*next_ctx).sepc;
         }
     } else {
         // 无限阻塞
         unsafe {
             let next_ctx = scheduler.block_current_task();
-            asm!("csrw mscratch, {}", in(reg) next_ctx);
-            return (*next_ctx).mepc;
+            asm!("csrw sscratch, {}", in(reg) next_ctx);
+            return (*next_ctx).sepc;
         }
     }
+}
+
+pub fn uart_write_byte(ctx: &mut TaskContext) -> usize {
+    ctx.sepc += 4;
+    let byte = (ctx.a0 & 0xff) as u8;
+    let _ = UART.lock().putchar(byte);
+    ctx.a0 = 0;
+    ctx.sepc
 }

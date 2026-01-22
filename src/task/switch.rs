@@ -5,10 +5,10 @@ use core::arch::naked_asm;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn __switch_to(next_task_ctx: *mut TaskContext) {
     naked_asm!(
-        // 1. 原子地交换 t6 和 mscratch，安全地获取到当前任务的上下文指针
-        //    执行后: t6 = &current_task_ctx, mscratch = old_t6
-        "csrrw t6, mscratch, t6",
-        // 2. 检查是否是第一次切换 (mscratch 初始为 0)，如果是则跳过保存步骤
+        // 1. 原子地交换 t6 和 sscratch，安全地获取到当前任务的上下文指针
+        //    执行后: t6 = &current_task_ctx, sscratch = old_t6
+        "csrrw t6, sscratch, t6",
+        // 2. 检查是否是第一次切换 (sscratch 初始为 0)，如果是则跳过保存步骤
         // "beqz t6, 1f",
         // 3. 将当前任务的完整上下文，保存到 t6 指向的 TaskContext 中
         "sd ra, 0(t6)",    // ra  (x1)
@@ -42,17 +42,30 @@ pub unsafe extern "C" fn __switch_to(next_task_ctx: *mut TaskContext) {
         "sd t5, 224(t6)",  // t5 (x30)
         // 4. 特殊处理 t6：使用 t5 作为临时备份
         "mv t5, t6",         // t5 = &current_task_ctx（备份）
-        "csrr t6, mscratch", // t6 = old_t6（原始值）
+        "csrr t6, sscratch", // t6 = old_t6（原始值）
         "sd t6, 232(t5)",    // 使用 t5 作为基址保存 t6
-        // 5. 恢复 mscratch
-        "csrw mscratch, t5", // mscratch = &current_task_ctx
-        // 特殊处理 t6: 先把它原来的值从 mscratch 换回来，再保存
-        // "csrrw t6, mscratch, t6",
+        // 5. 恢复 sscratch
+        // "csrw sscratch, t5", // sscratch = &current_task_ctx
+        // 特殊处理 t6: 先把它原来的值从 sscratch 换回来，再保存
+        // "csrrw t6, sscratch, t6",
         // "sd t6, 232(t6)", // t6 (x31)
         // "1:",
-        // 4. 将 mscratch 更新为下一个任务的上下文指针 (next_task_ctx 在 a0 中)
-        "csrw mscratch, a0",
-        // 5. 从 next_task_ctx (a0) 中恢复下一个任务的完整上下文
+        // 4. 将 sscratch 更新为下一个任务的上下文指针 (next_task_ctx 在 a0 中)
+        "csrw sscratch, a0",
+        // 5. 设置 sstatus.SPP=0 (U 模式) 并准备 sret
+        // 从 TaskContext 取出要返回的 PC，写入 sepc
+        "ld t0, 240(a0)",
+        "csrw sepc, t0",
+        // 读取 sstatus，清掉 SPP 位（bit8）以返回到 U 模式
+        "csrr t0, sstatus",
+        "li t1, 1 << 8",
+        "not t1, t1",
+        "and t0, t0, t1",
+        // 设置 SPIE 位（bit5），让 sret 后 U 模式开中断
+        "li t1, 1 << 5",
+        "or t0, t0, t1",
+        "csrw sstatus, t0",
+        // 6. 从 next_task_ctx (a0) 中恢复下一个任务的完整上下文
         "ld ra, 0(a0)",
         "ld sp, 8(a0)",
         "ld tp, 16(a0)",
@@ -85,7 +98,6 @@ pub unsafe extern "C" fn __switch_to(next_task_ctx: *mut TaskContext) {
         "ld t6, 232(a0)",
         // 最后恢复 a0 ，因为我们之前一直需要用 a0 作为基地址
         "ld a0, 64(a0)",
-        // 6. 执行 ret，跳转到新加载的 ra 地址，完成切换
-        "ret"
+        "sret"
     );
 }

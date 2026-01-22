@@ -11,8 +11,9 @@ runner = [
     "-machine", "virt",
     "-nographic",
     "-smp", "1",
-    "-bios", "none",
-    "-kernel", 
+    "-bios", "rustsbi.bin",
+    "-addr=0x80200000",
+    "-kernel"
     # Cargo 会自动在这里追加内核文件路径
 ]
 # 添加或修改这个 [alias] 段

@@ -10,6 +10,7 @@ harness = false
 [dependencies]
 lazy_static = { version = "1", features = ["spin_no_std"] }
 spin = "0.10.0"
+sbi-rt = "0.0.3"
 
 [features]
 default = ["uart_interrupt"]

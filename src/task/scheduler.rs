@@ -101,7 +101,7 @@ impl Scheduler {
         task_context.ra = trampoline as usize;
         task_context.a0 = data_ptr;
         task_context.a1 = vtable_ptr;
-        task_context.mepc = trampoline as usize;
+        task_context.sepc = trampoline as usize;
         //TODO: 若实现tls，则必须完成相关操作
         // task_context.ra = entry_point as *mut usize as usize;
         let tcb = TaskControlBlock {
@@ -291,12 +291,12 @@ impl Scheduler {
         // unsafe {
         // polling_println!("    ->aaa");
 
-        // loop {
-        //     core::hint::spin_loop();
-        // }
-        unsafe {
-            asm!("li a7, 7; ecall");
+        loop {
+            core::hint::spin_loop();
         }
+        // unsafe {
+        //     asm!("li a7, 7; ecall");
+        // }
         unreachable!();
     }
     pub fn run_scheduler() -> ! {

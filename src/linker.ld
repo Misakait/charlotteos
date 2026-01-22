@@ -5,13 +5,13 @@ OUTPUT_ARCH(riscv)
 ENTRY(_start)
 
 /* 2. 定义内存的基地址 */
-/* 对于纯M模式内核，我们是第一个程序，所以可以直接使用QEMU virt机器的DRAM起始地址 */
-BASE_ADDRESS = 0x80000000;
+/* 对于S模式内核，RustSBI 后内核从 0x80200000 开始 */
+BASE_ADDRESS = 0x80200000;
 
 /* 3. 定义内存区域以及属性 */
 MEMORY
 {
-    ram (rwxa) : ORIGIN = 0x80000000, LENGTH = 128M
+    ram (rwxa) : ORIGIN = 0x80200000, LENGTH = 126M
 	/*ram   (wxa!ri) : ORIGIN = 0x80000000, LENGTH = 128M*/
 }
 

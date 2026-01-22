@@ -2,7 +2,7 @@ use core::ops::{Deref, DerefMut};
 
 use spin::{Mutex, MutexGuard};
 
-use crate::trap::interrupts::{read_and_disable_machine_interrupts, restore_interrupts};
+use crate::trap::interrupts::{read_and_disable_supervisor_interrupts, restore_interrupts};
 
 pub struct IrqLock<T> {
     inner: Mutex<T>,
@@ -15,7 +15,7 @@ impl<T> IrqLock<T> {
     }
     pub fn lock(&self) -> IrqLockGuard<'_, T> {
         // 需要保存中断状态
-        let saved_status = read_and_disable_machine_interrupts();
+        let saved_status = read_and_disable_supervisor_interrupts();
         let guard = self.inner.lock();
         IrqLockGuard {
             _guard: guard,
