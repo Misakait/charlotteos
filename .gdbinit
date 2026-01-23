@@ -9,5 +9,5 @@ set architecture riscv:rv64
 # 连接到 QEMU 在 1234 端口上提供的调试服务
 target remote :1234
 
-# (可选) 设置初始断点
+# 设置初始断点
 b rust_main
