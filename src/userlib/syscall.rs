@@ -4,7 +4,7 @@ const SYS_WRITE_BYTE: usize = 1;
 const SYS_SLEEP: usize = 17;
 const SYS_READ: usize = 27;
 const SYS_TASK_EXIT: usize = 9;
-
+const SYS_QUIT: usize = 10;
 pub fn sys_sleep(ms: usize) {
     unsafe {
         asm!(
@@ -48,6 +48,16 @@ pub fn sys_task_exit() {
         asm!(
             "ecall",
             in("a7") SYS_TASK_EXIT,
+            options(nostack)
+        );
+    }
+}
+
+pub fn sys_shutdown() {
+    unsafe {
+        asm!(
+            "ecall",
+            in("a7") SYS_QUIT,
             options(nostack)
         );
     }

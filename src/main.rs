@@ -23,7 +23,7 @@ use crate::task::context::TaskContext;
 use crate::task::scheduler::Scheduler;
 use crate::trap::interrupts::{init_supervisor_interrupts, set_next_timer_tick};
 use crate::trap::trap_entry;
-use crate::userlib::syscall::{sys_read, sys_sleep, sys_task_exit};
+use crate::userlib::syscall::{sys_read, sys_shutdown, sys_sleep, sys_task_exit};
 use core::arch::{asm, global_asm};
 use core::slice;
 use driver::{SerialPort, Uart}; // 引入 Trait 和统一的 Uart 类型
@@ -77,7 +77,6 @@ pub extern "C" fn rust_main() {
         let stvec_addr = (trap_entry as usize) & !0x3;
         asm!("csrw stvec, {}", in(reg) stvec_addr);
     }
-    let vec = Vec::from([1, 2, 3]);
     // println!("vec ptr: {:#X}", vec.as_ptr() as *const usize as usize);
     // polling_println!("polling");
     println!("Hello from Charlotte OS!");
@@ -145,6 +144,7 @@ fn test_task_b() {
     sys_sleep(10000);
     // println!("[Task B] ✓ Finished!");
     user_println!("[Task B] ✓ Finished!");
+    sys_shutdown();
     // sys_task_exit();
 }
 fn shell() {

@@ -109,3 +109,7 @@ pub fn exit_current_task() {
         scheduler.get_zombie_queue().push(id);
     }
 }
+
+pub fn system_quit() -> usize {
+    return sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::NoReason).error;
+}

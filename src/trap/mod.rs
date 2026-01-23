@@ -1,5 +1,7 @@
 use crate::driver::plic::{InterruptRequest, PLIC};
-use crate::syslib::syscall::{exit_current_task, schedule, sleep, uart_read, uart_write_byte};
+use crate::syslib::syscall::{
+    exit_current_task, schedule, sleep, system_quit, uart_read, uart_write_byte,
+};
 use crate::task::SCHEDULER;
 use crate::task::context::TaskContext;
 use crate::task::scheduler::Scheduler;
@@ -190,6 +192,7 @@ pub unsafe extern "C" fn trap_handler(tcb: &mut TaskContext, scause: usize) -> u
                     exit_current_task();
                     return schedule(tcb);
                 }
+                10 => return system_quit(),
                 17 => return sleep(tcb),
                 27 => return uart_read(tcb),
                 _ => {}
