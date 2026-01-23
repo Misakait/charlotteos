@@ -1,5 +1,7 @@
 // src/mm/mod.rs
+pub mod address;
 pub mod buddy;
+pub mod pagetable;
 
 use crate::println;
 use buddy::BuddySystemAllocator;
@@ -8,7 +10,8 @@ use core::ptr;
 use core::ptr::NonNull;
 use spin::Mutex;
 
-pub const PAGE_SIZE: usize = 4096; // 4KB
+pub const PAGE_SIZE_BITS: usize = 12;
+pub const PAGE_SIZE: usize = 1 << PAGE_SIZE_BITS; // 4KB
 
 // 定义一个带锁的分配器结构体
 pub struct LockedAllocator(Mutex<BuddySystemAllocator>);
