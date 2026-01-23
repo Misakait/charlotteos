@@ -4,10 +4,14 @@ use crate::{
     task::{
         SCHEDULER,
         context::TaskContext,
-        switch::__switch_to,
+        switch::first_switch_to,
         tcb::{TaskControlBlock, TaskStatus},
     },
-    trap::trap_handler,
+    trap::{
+        interrupts::{init_supervisor_interrupts, set_next_timer_tick},
+        trap_handler,
+    },
+    userlib::syscall::sys_task_exit,
 };
 use alloc::{
     boxed::Box,
@@ -61,7 +65,12 @@ impl Scheduler {
     pub fn get_current_task_id(&self) -> TaskId {
         self.current_task_id.unwrap()
     }
-
+    pub fn get_zombie_queue(&mut self) -> &mut Vec<TaskId> {
+        &mut self.zombie_queue
+    }
+    pub fn get_task_list(&mut self) -> &mut Vec<Option<TaskControlBlock>> {
+        &mut self.task_list
+    }
     pub fn init() -> Result<(), SchedulerError> {
         let mut scheduler = SCHEDULER.lock();
         scheduler.spawn(idle_task, 4096, 0)
@@ -272,43 +281,17 @@ impl Scheduler {
             }
         }
     }
-    fn exit_current_task() -> ! {
-        // 为了确保除了第一个任务是由__switch_to切换的，其他的都由中断切换，这里只是加入僵尸队列然后空转等待中断调度
-        // let next_ctx_ptr = {
-        {
-            let mut scheduler = SCHEDULER.lock();
 
-            // 标记当前任务为已终止
-            if let Some(id) = scheduler.current_task_id {
-                if let Some(tcb) = scheduler.task_list[id].as_mut() {
-                    tcb.status = TaskStatus::Terminated;
-                    scheduler.zombie_queue.push(id);
-                }
-            }
-        }
-        // scheduler.prepare_next_task(true)
-        // };
-        // unsafe {
-        // polling_println!("    ->aaa");
-
-        loop {
-            core::hint::spin_loop();
-        }
-        // unsafe {
-        //     asm!("li a7, 7; ecall");
-        // }
-        unreachable!();
-    }
     pub fn run_scheduler() -> ! {
         // 获取第一个任务的上下文指针
         let next_ctx_ptr = {
             let mut scheduler = SCHEDULER.lock();
             scheduler.prepare_next_task()
         }; // 锁在这里被释放！
-
+        // polling_println!("here");
         // 在锁释放后执行上下文切换
         unsafe {
-            __switch_to(next_ctx_ptr);
+            first_switch_to(next_ctx_ptr);
         }
         // polling_println!("here");
         unreachable!();
@@ -320,16 +303,18 @@ impl Scheduler {
 }
 
 pub extern "C" fn trampoline(data_ptr: usize, vtable_ptr: usize) -> ! {
-    {
-        let mut scheduler = SCHEDULER.lock();
-        scheduler.mark_current_running();
-    }
+    // {
+    //     let mut scheduler = SCHEDULER.lock();
+    //     scheduler.mark_current_running();
+    // }
     unsafe {
         let raw_fat_ptr: *mut (dyn FnOnce() + Send + 'static) = transmute((data_ptr, vtable_ptr));
         let task = Box::from_raw(raw_fat_ptr);
         task();
     }
-    Scheduler::exit_current_task(); // 通知调度器该任务结束，永不返回
+    sys_task_exit();
+    unreachable!();
+    // Scheduler::exit_current_task(); // 通知调度器该任务结束，永不返回
 }
 fn idle_task() {
     loop {

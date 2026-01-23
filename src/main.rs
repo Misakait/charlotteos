@@ -23,7 +23,7 @@ use crate::task::context::TaskContext;
 use crate::task::scheduler::Scheduler;
 use crate::trap::interrupts::{init_supervisor_interrupts, set_next_timer_tick};
 use crate::trap::trap_entry;
-use crate::userlib::syscall::{sys_read, sys_sleep};
+use crate::userlib::syscall::{sys_read, sys_sleep, sys_task_exit};
 use core::arch::{asm, global_asm};
 use core::slice;
 use driver::{SerialPort, Uart}; // 引入 Trait 和统一的 Uart 类型
@@ -94,9 +94,9 @@ pub extern "C" fn rust_main() {
         scheduler
             .spawn(test_task_b, 8192, 1)
             .expect("Failed to spawn task B");
-        // scheduler
-        //     .spawn(shell, 8192, 1)
-        //     .expect("Failed to spawn task shell");
+        scheduler
+            .spawn(shell, 8192, 1)
+            .expect("Failed to spawn task shell");
     } // 锁在这里释放
 
     println!("All tasks created. Starting scheduler...");
@@ -115,6 +115,9 @@ pub extern "C" fn rust_main() {
 // #[unsafe(no_mangle)]
 fn test_task_a() {
     user_println!("[Task A] ✓ Start!");
+    // let status: usize;
+    // unsafe { asm!("csrr {}, sstatus", out(reg) status) }
+    // polling_println!("task a sstatus: {:b}", status);
     let mut a = 0;
     for _ in 0..10 {
         // 模拟一些工作负载
@@ -126,6 +129,7 @@ fn test_task_a() {
     }
     // println!("[Task A] ✓ Finished!");
     user_println!("[Task A] ✓ Finished!");
+    // sys_task_exit();
 }
 fn test_task_b() {
     // println!("[Task B] ✓ Start!");
@@ -141,6 +145,7 @@ fn test_task_b() {
     sys_sleep(10000);
     // println!("[Task B] ✓ Finished!");
     user_println!("[Task B] ✓ Finished!");
+    // sys_task_exit();
 }
 fn shell() {
     // println!("shell Start!");
@@ -156,4 +161,5 @@ fn shell() {
     // }
     // println!("shell ✓ Finished!");
     user_println!("shell ✓ Finished!");
+    // sys_task_exit();
 }

@@ -48,7 +48,7 @@ pub unsafe fn init_supervisor_interrupts() {
 
         // 开启 S 模式下的中断总开关 (sstatus.SIE)
         // 此处的2为 1 << 1
-        asm!("csrsi sstatus, 2");
+        // asm!("csrsi sstatus, 2");
     }
 }
 pub fn disable_supervisor_interrupts() {
@@ -96,7 +96,8 @@ pub fn get_time() -> usize {
 }
 pub unsafe fn set_next_timer_tick() {
     // 0.01 即 10 毫秒
-    const TEN_MS_CYCLES: usize = (RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ / 1000) as usize;
+    const TEN_MS_CYCLES: usize = (RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ / 100) as usize;
+    // const TEN_MS_CYCLES: usize = (RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ) as usize;
     let current_time = get_time();
     let target_time = current_time + TEN_MS_CYCLES;
     let _ = set_timer(target_time as u64);

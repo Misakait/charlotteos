@@ -1,16 +1,16 @@
 use core::{arch::asm, usize};
 
 use crate::{
+    UART,
     bsp::qemu_virt::RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ,
     driver::SerialPort,
-    task::{SCHEDULER, context::TaskContext, scheduler::Scheduler},
+    polling_println,
+    task::{SCHEDULER, context::TaskContext, scheduler::Scheduler, tcb::TaskStatus},
     trap::interrupts::{get_time, service::uart_service::UART_SERVICE},
-    UART,
 };
 
 pub fn schedule(tcb: &mut TaskContext) -> usize {
     tcb.sepc = tcb.sepc + 4;
-
     let next_ctx_ptr = Scheduler::schedule_on_interrupt();
     unsafe {
         asm!("csrw sscratch, {}", in(reg) next_ctx_ptr);
@@ -99,4 +99,13 @@ pub fn uart_write_byte(ctx: &mut TaskContext) -> usize {
     let _ = UART.lock().putchar(byte);
     ctx.a0 = 0;
     ctx.sepc
+}
+
+pub fn exit_current_task() {
+    let mut scheduler = SCHEDULER.lock();
+    let id = scheduler.get_current_task_id();
+    if let Some(tcb) = scheduler.get_task_list()[id].as_mut() {
+        tcb.status = TaskStatus::Terminated;
+        scheduler.get_zombie_queue().push(id);
+    }
 }

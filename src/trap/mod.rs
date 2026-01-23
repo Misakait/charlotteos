@@ -1,5 +1,5 @@
 use crate::driver::plic::{InterruptRequest, PLIC};
-use crate::syslib::syscall::{schedule, sleep, uart_read, uart_write_byte};
+use crate::syslib::syscall::{exit_current_task, schedule, sleep, uart_read, uart_write_byte};
 use crate::task::SCHEDULER;
 use crate::task::context::TaskContext;
 use crate::task::scheduler::Scheduler;
@@ -146,8 +146,10 @@ fn plic_handler() {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn trap_handler(tcb: &mut TaskContext, scause: usize) -> usize {
     // polling_println!("Welcome to Interrupt!");
-    // println!("sepc: {:#x}, scause: {:#x}", sepc, scause);
-
+    // polling_println!("scause: {:#x}", scause);
+    // let status: usize;
+    // unsafe { asm!("csrr {}, sstatus", out(reg) status) }
+    // polling_println!("scause: {:#x},sstatus: {:b}", scause, status);
     match parse_trap_cause(scause) {
         TrapCause::Interrupt(InterruptCause::SupervisorTimerInterrupt) => {
             // println!("Welcome to Time Interrupt!");
@@ -180,9 +182,14 @@ pub unsafe extern "C" fn trap_handler(tcb: &mut TaskContext, scause: usize) -> u
         }
         TrapCause::Exception(ExceptionCause::UserEcall) => {
             let syscall_code = tcb.a7;
+            // polling_println!("USERCALL：{}", syscall_code);
             match syscall_code {
                 1 => return uart_write_byte(tcb),
                 7 => return schedule(tcb),
+                9 => {
+                    exit_current_task();
+                    return schedule(tcb);
+                }
                 17 => return sleep(tcb),
                 27 => return uart_read(tcb),
                 _ => {}
@@ -193,7 +200,12 @@ pub unsafe extern "C" fn trap_handler(tcb: &mut TaskContext, scause: usize) -> u
             unsafe {
                 asm!("csrr {}, stval", out(reg) stval_value);
             }
-            polling_println!("Unknown exception: scause={}, stval=0x{:x}, sepc=0x{:x}", scause, stval_value, tcb.sepc);
+            polling_println!(
+                "Unknown exception: scause={}, stval=0x{:x}, sepc=0x{:x}",
+                scause,
+                stval_value,
+                tcb.sepc
+            );
         }
     }
     // polling_println!("exit trap handler");

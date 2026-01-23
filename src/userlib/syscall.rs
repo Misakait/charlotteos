@@ -3,6 +3,7 @@ use core::arch::asm;
 const SYS_WRITE_BYTE: usize = 1;
 const SYS_SLEEP: usize = 17;
 const SYS_READ: usize = 27;
+const SYS_TASK_EXIT: usize = 9;
 
 pub fn sys_sleep(ms: usize) {
     unsafe {
@@ -38,6 +39,15 @@ pub fn sys_write_byte(byte: u8) {
             "ecall",
             in("a7") SYS_WRITE_BYTE,
             in("a0") byte as usize,
+            options(nostack)
+        );
+    }
+}
+pub fn sys_task_exit() {
+    unsafe {
+        asm!(
+            "ecall",
+            in("a7") SYS_TASK_EXIT,
             options(nostack)
         );
     }
