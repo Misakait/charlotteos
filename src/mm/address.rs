@@ -1,11 +1,12 @@
 use crate::mm::{PAGE_SIZE, PAGE_SIZE_BITS};
 
 use core::convert::From;
-use core::usize;
+use core::{ptr, usize};
 
 pub const PA_WIDTH_SV39: usize = 56;
+pub const VA_WIDTH_SV39: usize = 39;
 pub const PPN_WIDTH_SV39: usize = PA_WIDTH_SV39 - PAGE_SIZE_BITS;
-
+pub const VPN_WIDTH_SV39: usize = VA_WIDTH_SV39 - PAGE_SIZE_BITS;
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 #[repr(transparent)]
 pub struct PhysAddr(pub usize);
@@ -18,10 +19,55 @@ pub struct VirtAddr(pub usize);
 #[repr(transparent)]
 pub struct PhysPageNum(pub usize);
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
 #[repr(transparent)]
 pub struct VirtPageNum(pub usize);
 
+impl VirtPageNum {
+    pub fn indices(&self) -> [usize; 3] {
+        let mut vpn = self.0;
+        let mut idx = [0; 3];
+        for i in (0..3).rev() {
+            idx[i] = vpn & ((1 << 9) - 1);
+            vpn >>= 9;
+        }
+        idx
+    }
+}
+impl VirtAddr {
+    pub fn floor(&self) -> VirtPageNum {
+        VirtPageNum(self.0 >> PAGE_SIZE_BITS)
+    }
+
+    pub fn ceil(&self) -> VirtPageNum {
+        VirtPageNum((self.0 - 1 + PAGE_SIZE) >> PAGE_SIZE_BITS)
+    }
+
+    pub fn page_offset(&self) -> usize {
+        self.0 & (PAGE_SIZE - 1)
+    }
+
+    /// Check if the virtual address is aligned by page size
+    pub fn aligned(&self) -> bool {
+        self.page_offset() == 0
+    }
+}
+impl From<VirtAddr> for VirtPageNum {
+    fn from(v: VirtAddr) -> Self {
+        assert_eq!(v.page_offset(), 0);
+        v.floor()
+    }
+}
+impl From<usize> for VirtAddr {
+    fn from(v: usize) -> Self {
+        Self(v & ((1 << VA_WIDTH_SV39) - 1))
+    }
+}
+impl From<usize> for VirtPageNum {
+    fn from(v: usize) -> Self {
+        Self(v & ((1 << VPN_WIDTH_SV39) - 1))
+    }
+}
 impl From<usize> for PhysAddr {
     fn from(v: usize) -> Self {
         Self(v & ((1 << PA_WIDTH_SV39) - 1))
@@ -66,8 +112,16 @@ impl From<PhysAddr> for PhysPageNum {
     }
 }
 
-impl From<PhysPageNum> for PhysAddr {
-    fn from(v: PhysPageNum) -> Self {
+impl From<&PhysPageNum> for PhysAddr {
+    fn from(v: &PhysPageNum) -> Self {
         Self(v.0 << PAGE_SIZE_BITS)
+    }
+}
+impl PhysPageNum {
+    pub fn clear(&self) {
+        let pa = PhysAddr::from(self);
+        unsafe {
+            ptr::write_bytes(pa.0 as *mut u8, 0, PAGE_SIZE);
+        }
     }
 }

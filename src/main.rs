@@ -3,6 +3,7 @@
 extern crate alloc;
 
 mod bsp;
+mod config;
 mod console;
 mod data_struct;
 mod driver;

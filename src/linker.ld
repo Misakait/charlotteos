@@ -66,6 +66,6 @@ SECTIONS
     PROVIDE(_memory_end = ORIGIN(ram) + LENGTH(ram));
 
     /* .heap 段: 用于动态分配内存 */
-    PROVIDE(_heap_start = _bss_end);
+    PROVIDE(_ekernel = _bss_end);
     PROVIDE(_heap_size = _memory_end - _heap_start);
 }
