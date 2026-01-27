@@ -35,6 +35,7 @@ park:
 	# In the standard RISC-V calling convention, the stack pointer sp
 	# is always 16-byte aligned.
 	# 确保下面的 `stacks` 标签地址是 16 字节对齐的，这是一个好习惯，能提升性能。
+.section .bss.stack
 .balign 16
 stacks:
 	# .skip 指令：在这里预留一块内存空间
@@ -42,4 +43,4 @@ stacks:
 	# 这块内存就是所有核心的栈的总和。
 	.skip	STACK_SIZE * 1
 
-	.end				# 文件结束
+	.end

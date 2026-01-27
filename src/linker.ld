@@ -54,6 +54,8 @@ SECTIONS
     /* .bss 段: 存放所有未初始化的全局变量和静态变量 */
     /* 内核启动后，需要自己负责将这块内存清零 */
     .bss : ALIGN(4) {
+        PROVIDE(_bss_start_with_stack = .);
+        *(.bss.stack)
         PROVIDE(_bss_start = .);
         *(.sbss .sbss.*)
         *(.bss .bss.*)
@@ -67,5 +69,5 @@ SECTIONS
 
     /* .heap 段: 用于动态分配内存 */
     PROVIDE(_ekernel = _bss_end);
-    PROVIDE(_heap_size = _memory_end - _heap_start);
+    PROVIDE(_heap_size = _memory_end - _ekernel);
 }
