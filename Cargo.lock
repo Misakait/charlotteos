@@ -15,10 +15,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
 
 [[package]]
+name = "buddy_system_allocator"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b672b945a3e4f4f40bfd4cd5ee07df9e796a42254ce7cd6d2599ad969244c44a"
+dependencies = [
+ "spin 0.10.0",
+]
+
+[[package]]
 name = "charlotte_os"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "buddy_system_allocator",
  "lazy_static",
  "sbi-rt",
  "spin 0.10.0",

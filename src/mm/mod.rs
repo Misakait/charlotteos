@@ -46,7 +46,7 @@ pub fn frame_alloc() -> Option<FrameTracker> {
             .0
             .lock()
             .alloc(NonZeroUsize::new_unchecked(1))
-            .map(|ppn| FrameTracker { ppn })
+            .map(|ppn| FrameTracker::new(ppn))
     }
 }
 
