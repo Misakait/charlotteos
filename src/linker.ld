@@ -20,10 +20,10 @@ SECTIONS
 {
     /* Location Counter (.), 表示当前地址. 我们将它设置为基地址 */
     . = BASE_ADDRESS;
-
+    PROVIDE(_skernel = .);
     /* .text 段: 存放所有可执行代码 */
-    /* ALIGN(4) 确保代码段4字节对齐 */
-    .text : ALIGN(4) {
+    /* ALIGN(4K) 确保代码段4K字节对齐 */
+    .text : ALIGN(4K) {
         /* 定义一个名为 _text_start 的符号，其地址为当前位置 */
         PROVIDE(_text_start = .);
 
@@ -38,14 +38,14 @@ SECTIONS
     } > ram
 
     /* .rodata 段: 存放所有只读数据, 例如字符串字面量 */
-    .rodata : ALIGN(4) {
+    .rodata : ALIGN(4K) {
         PROVIDE(_rodata_start = .);
         *(.rodata .rodata.*)
         PROVIDE(_rodata_end = .);
     } > ram
 
     /* .data 段: 存放所有已初始化的全局变量和静态变量 */
-    .data : ALIGN(4) {
+    .data : ALIGN(4K) {
         PROVIDE(_data_start = .);
         *(.data .data.*)
         PROVIDE(_data_end = .);
@@ -53,7 +53,7 @@ SECTIONS
 
     /* .bss 段: 存放所有未初始化的全局变量和静态变量 */
     /* 内核启动后，需要自己负责将这块内存清零 */
-    .bss : ALIGN(4) {
+    .bss : ALIGN(4K) {
         PROVIDE(_bss_start_with_stack = .);
         *(.bss.stack)
         PROVIDE(_bss_start = .);
