@@ -1,0 +1,20 @@
+[
+  {
+    "label": "Debug Charlotte OS",
+    "adapter": "CodeLLDB",
+    "program": "$ZED_WORKTREE_ROOT/target/riscv64gc-unknown-none-elf/release/charlotte_os",
+    "request": "attach",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    // "build": {
+    //   "command": "./start_qemu.sh",
+    // },
+    "initCommands": ["settings set target.default-arch riscv64"],
+    "targetCreateCommands": [
+      "target create $ZED_WORKTREE_ROOT/target/riscv64gc-unknown-none-elf/release/charlotte_os",
+    ],
+    "processCreateCommands": ["gdb-remote localhost:1234"],
+    // "stopOnEntry": true,
+    "postRunCommands": ["b rust_main", "continue"],
+    "console": "integratedTerminal",
+  },
+]
