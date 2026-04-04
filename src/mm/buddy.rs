@@ -3,7 +3,7 @@ use crate::mm::address::{PhysAddr, PhysPageNum};
 use crate::mm::{PAGE_SIZE, PAGE_SIZE_BITS};
 use crate::println;
 use core::num::NonZeroUsize;
-use core::ptr::{write_volatile, NonNull};
+use core::ptr::{NonNull, write_volatile};
 
 pub const MAX_ORDER: usize = 16; // 阶数范围是 0..15，共 16 个
 #[repr(C)]
@@ -19,34 +19,34 @@ impl ListNode {
 /// 伙伴系统分配器
 pub struct BuddySystemFrameAllocator {
     free_lists: [Option<NonNull<ListNode>>; MAX_ORDER], // 按2的幂次管理空闲链表
-    start: PhysPageNum,
-    end: PhysPageNum,
 }
 impl BuddySystemFrameAllocator {
     /// 创建一个空的、未初始化的分配器
     pub const fn new() -> Self {
         Self {
             free_lists: [None; MAX_ORDER],
-            start: PhysPageNum(0),
-            end: PhysPageNum(0),
         }
     }
 
     /// 初始化分配器
     /// pa_start 和 pa_end 必须是页对齐的
-    pub unsafe fn init(&mut self, pa_start: usize, pa_end: usize) {
+    pub unsafe fn add_free_region(&mut self, pa_start: usize, pa_end: usize) {
         let start_addr = PhysAddr(pa_start);
         let end_addr = PhysAddr(pa_end);
         // start 必须向上取整 (ceil)，因为如果不满一页，那半页不能用
-        self.start = start_addr.ceil();
+        let align_start_ppn = start_addr.ceil().0;
         // end 必须向下取整 (floor)，防止越界到非法的内存去
-        self.end = end_addr.floor();
-        let mut current_ppn = self.start.0;
-        let end_ppn = self.end.0;
+        let align_end_ppn = end_addr.floor().0;
+
+        if align_start_ppn >= align_end_ppn {
+            return; // 这块碎片太小了，连一页 4KB 都凑不齐，直接丢弃
+        }
+
+        let mut current_ppn = align_start_ppn;
         println!("Buddy System Allocator initialized:");
         println!("  -> Heap start: 0x{:x}, end: 0x{:x}", pa_start, pa_end);
-        while current_ppn < end_ppn {
-            let remaining_pages = end_ppn - current_ppn;
+        while current_ppn < align_end_ppn {
+            let remaining_pages = align_end_ppn - current_ppn;
             if remaining_pages == 0 {
                 break;
             }
