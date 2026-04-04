@@ -2,6 +2,7 @@
 pub mod address;
 pub mod buddy;
 pub mod bump;
+pub mod memblock;
 pub mod mm_set;
 pub mod pagetable;
 
@@ -10,76 +11,23 @@ use crate::data_struct::sync_ref_cell::SyncRefCell;
 use crate::mm::address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
 use crate::mm::buddy::phys_to_virt;
 use crate::mm::bump::BumpAllocator;
+use crate::mm::memblock::MEMBLOCK;
 use crate::mm::pagetable::{FrameTracker, PTEFlags, PageSize, PageTable};
-use crate::println;
+use crate::{polling_println, println};
 use buddy::BuddySystemFrameAllocator;
-use buddy_system_allocator::LockedHeap;
 use core::alloc::{GlobalAlloc, Layout};
 use core::cell::RefCell;
 use core::num::NonZeroUsize;
 use core::ptr;
 use core::ptr::NonNull;
+use fdt::Fdt;
 use lazy_static::lazy_static;
 use spin::Mutex;
 pub const PAGE_SIZE_BITS: usize = 12;
 pub const PAGE_SIZE: usize = 1 << PAGE_SIZE_BITS; // 4KB
 
-// 定义一个带锁的分配器结构体
-pub struct LockedFrameAllocator(Mutex<BuddySystemFrameAllocator>);
-
-impl LockedFrameAllocator {
-    /// 创建一个全局的、空的分配器实例
-    pub const fn new() -> Self {
-        Self(Mutex::new(BuddySystemFrameAllocator::new()))
-    }
-
-    /// 初始化堆，这个函数将由内核主程序调用
-    pub unsafe fn init(&self, heap_start: usize, heap_end: usize) {
-        self.0.lock().init(heap_start, heap_end);
-    }
-}
-pub static FRAME_ALLOCATOR: LockedFrameAllocator = LockedFrameAllocator::new();
-
-pub fn frame_alloc() -> Option<FrameTracker> {
-    unsafe {
-        FRAME_ALLOCATOR
-            .0
-            .lock()
-            .alloc(NonZeroUsize::new_unchecked(1))
-            .map(|ppn| FrameTracker::new(ppn))
-    }
-}
-
-pub fn frame_dealloc(ppn: PhysPageNum) {
-    unsafe {
-        FRAME_ALLOCATOR
-            .0
-            .lock()
-            .dealloc(ppn, NonZeroUsize::new_unchecked(1));
-    }
-}
-// 为我们的带锁分配器实现 GlobalAlloc Trait
-// unsafe impl GlobalAlloc for LockedAllocator {
-//     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-//         self.0
-//             .lock()
-//             .alloc(layout)
-//             .map_or(ptr::null_mut(), |p| p.as_ptr())
-//     }
-
-//     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-//         self.0.lock().dealloc(NonNull::new_unchecked(ptr), layout);
-//     }
-// }
-// 使用 #[global_allocator] 属性来注册我们的全局分配器实例
-#[global_allocator]
-// pub static HEAP_ALLOCATOR: LockedAllocator = LockedAllocator::new();
-pub static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::empty();
-// #[alloc_error_handler]
-// pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
-//     panic!("Heap allocation error, layout = {:?}", layout);
-// }
 unsafe extern "C" {
+    static _skernel: usize;
     static _ekernel: usize;
     static _heap_size: usize;
     static _text_start: usize;
@@ -88,50 +36,145 @@ unsafe extern "C" {
     static _rodata_end: usize;
     static _data_start: usize;
     static _data_end: usize;
+    static _bss_start_with_stack: usize;
     static _bss_start: usize;
     static _bss_end: usize;
     static _memory_end: usize;
     static _memory_start: usize;
 }
 
-lazy_static! {
-    static ref BUMP_ALLOCATOR: SyncRefCell<BumpAllocator> = {
-        let ekernel = unsafe { &_ekernel as *const _ as usize };
-        let memory_end = unsafe { &_memory_end as *const _ as usize };
-        unsafe { SyncRefCell::new(BumpAllocator::new(ekernel, memory_end)) }
-    };
-}
 static BOOT_ROOT_PPN: SyncRefCell<PhysPageNum> = unsafe { SyncRefCell::new(PhysPageNum(0)) };
-// pub static BUMP_ALLOCATOR: SyncRefCell<BumpAllocator> = {
-//     let ekernel = unsafe { &_ekernel as *const _ as usize };
-//     let memory_end = unsafe { &_memory_end as *const _ as usize };
-//     BumpAllocator::new(ekernel, memory_end)
-// };
 
-fn align_up(value: usize, align: usize) -> usize {
-    (value + align - 1) & !(align - 1)
-}
+pub fn setup_memory_and_mapping(dtb_addr: usize) {
+    let stext = unsafe { &_text_start as *const _ as usize };
+    let etext = unsafe { &_text_end as *const _ as usize };
+    let srodata = unsafe { &_rodata_start as *const _ as usize };
+    let erodata = unsafe { &_rodata_end as *const _ as usize };
+    let sdata = unsafe { &_data_start as *const _ as usize };
+    let edata = unsafe { &_data_end as *const _ as usize };
+    let sbss_with_stack = unsafe { &_bss_start_with_stack as *const _ as usize };
+    let ebss = unsafe { &_bss_end as *const _ as usize };
+    let skernel = unsafe { &_skernel as *const _ as usize };
+    let ekernel = unsafe { &_ekernel as *const _ as usize };
 
-fn align_down(value: usize, align: usize) -> usize {
-    value & !(align - 1)
-}
+    let fdt = unsafe { Fdt::from_ptr(dtb_addr as *const u8).unwrap() };
 
-pub fn boot_bump_map() {
-    let memory_start = unsafe { &_memory_start as *const _ as usize };
-    let memory_end = unsafe { &_memory_end as *const _ as usize };
-    let root_ppn = BUMP_ALLOCATOR
-        .borrow_mut()
-        .alloc_page()
+    // 获取物理内存总盘 (RAM)，并初始化 MEMBLOCK
+    let mut ram_base = 0;
+    let mut ram_size = 0;
+    for node in fdt.all_nodes() {
+        if node.name.starts_with("memory") {
+            if let Some(memory_region) = node.reg().and_then(|mut reg| reg.next()) {
+                ram_base = memory_region.starting_address as usize;
+                ram_size = memory_region.size.unwrap_or(0);
+                break;
+            }
+        }
+    }
+    let ram_end = ram_base + ram_size;
+    MEMBLOCK
+        .lock()
+        .init_add_memory(PhysAddr(ram_base), ram_size);
+    polling_println!("Memblock init: raw_ram -> {:#x}..{:#x}", ram_base, ram_end);
+
+    // 在 Memblock 中把内核占用的物理内存抠掉
+    MEMBLOCK
+        .lock()
+        .reserve_memory(PhysAddr(skernel), ekernel - skernel);
+    polling_println!("Memblock reserve: kernel -> {:#x}..{:#x}", skernel, ekernel);
+
+    // 处理头部旧标准的保留内存声明
+    for reserved in fdt.memory_reservations() {
+        MEMBLOCK
+            .lock()
+            .reserve_memory(PhysAddr(reserved.address() as usize), reserved.size());
+        polling_println!(
+            "Memblock reserve: reserve_memory -> {:#x}..{:#x}",
+            reserved.address() as usize,
+            reserved.size() + reserved.size()
+        );
+    }
+
+    // 在 Memblock 抠除 DTB 数据本身的占用
+    MEMBLOCK
+        .lock()
+        .reserve_memory(PhysAddr(dtb_addr), fdt.total_size());
+    polling_println!(
+        "Memblock reserve: dtb -> {:#x}..{:#x}",
+        dtb_addr,
+        fdt.total_size() + dtb_addr
+    );
+
+    // 申请根页表 (此时 Memblock 已经有内存了，可以安心申请)
+    let root_pa = MEMBLOCK
+        .lock()
+        .early_alloc(PAGE_SIZE, PAGE_SIZE)
         .expect("boot root page table allocation failed");
-    let root_pa = PhysAddr::from(&root_ppn).0;
+    let root_pt = unsafe { &mut *(root_pa.0 as *mut PageTable) };
 
-    let root_pt = unsafe { &mut *(root_pa as *mut PageTable) };
+    for node in fdt.all_nodes() {
+        if node.name.starts_with("memory") {
+            continue; // 真正的内存节点前面处理过了
+        }
 
-    let flags = PTEFlags::R | PTEFlags::W | PTEFlags::X;
-    let page_start = align_down(memory_start, PAGE_SIZE);
-    let page_end = align_up(memory_end, PAGE_SIZE);
-    let aligned_start = align_up(page_start, 0x20_0000);
-    let aligned_end = align_down(page_end, 0x20_0000);
+        if let Some(reg) = node.reg() {
+            for memory_region in reg {
+                let base = memory_region.starting_address as usize;
+                let size = memory_region.size.unwrap_or(0);
+
+                if size > 0 {
+                    let end = base + size;
+
+                    if base >= ram_base && end <= ram_end {
+                        // 落在 RAM 里的区间,这是固件保留区 (比如 SBI)
+                        MEMBLOCK.lock().reserve_memory(PhysAddr(base), size);
+                        polling_println!(
+                            "Memblock reserve: reserve_memory -> {:#x}..{:#x}",
+                            base,
+                            base + size
+                        );
+                    } else {
+                        map_segment(base, end, PTEFlags::R | PTEFlags::W, root_pt);
+                        polling_println!("Mapped MMIO: {} -> {:#x}..{:#x}", node.name, base, end);
+                    }
+                }
+            }
+        }
+    }
+
+    // 内核精细化映射
+    map_segment(stext, etext, PTEFlags::R | PTEFlags::X, root_pt);
+    polling_println!("Mapped text -> {:#x}..{:#x}", stext, etext);
+    map_segment(srodata, erodata, PTEFlags::R, root_pt);
+    polling_println!("Mapped rodata -> {:#x}..{:#x}", srodata, erodata);
+    map_segment(sdata, edata, PTEFlags::R | PTEFlags::W, root_pt);
+    polling_println!("Mapped data -> {:#x}..{:#x}", sdata, edata);
+    map_segment(sbss_with_stack, ebss, PTEFlags::R | PTEFlags::W, root_pt);
+    polling_println!("Mapped bss -> {:#x}..{:#x}", sbss_with_stack, ebss);
+
+    // 内核终点到物理内存终点
+    let ram_start_after_kernel = align_up(ekernel, PAGE_SIZE);
+    map_segment(
+        ram_start_after_kernel,
+        ram_end,
+        PTEFlags::R | PTEFlags::W,
+        root_pt,
+    );
+    polling_println!(
+        "Mapped kernel -> {:#x}..{:#x}",
+        ram_start_after_kernel,
+        ram_end
+    );
+
+    // 6. 将根页表移交给激活阶段
+    *BOOT_ROOT_PPN.borrow_mut() = PhysPageNum::from(root_pa);
+}
+
+pub fn map_segment(start_addr: usize, end_addr: usize, flags: PTEFlags, root_pt: &mut PageTable) {
+    let page_start = align_down(start_addr, PAGE_SIZE);
+    let page_end = align_up(end_addr, PAGE_SIZE);
+    let aligned_start = align_up(page_start, 0x20_0000).min(page_end);
+    let aligned_end = align_down(page_end, 0x20_0000).max(aligned_start);
 
     let head_end = aligned_start.min(page_end);
     let mut current_pa = page_start;
@@ -173,51 +216,14 @@ pub fn boot_bump_map() {
         );
         current_pa += PAGE_SIZE;
     }
-
-    *BOOT_ROOT_PPN.borrow_mut() = root_ppn;
 }
 
-pub fn init_heap() {
-    const HEAP_SIZE: usize = 0x20_0000;
-    const HEAP_PAGES: usize = HEAP_SIZE / PAGE_SIZE;
-
-    println!("Initializing Heap Allocator...");
-
-    // 2. 向物理页分配器申请连续的物理页
-    // 这里调用的是你之前写的 BuddySystemFrameAllocator::alloc
-    let start_ppn = FRAME_ALLOCATOR
-        .0
-        .lock()
-        .alloc(NonZeroUsize::new(HEAP_PAGES).unwrap())
-        .expect("Failed to allocate physical memory for Heap!");
-
-    // 3. 计算物理地址和虚拟地址
-    let start_pa = start_ppn.0 * PAGE_SIZE; // 物理页号转物理地址
-    let start_va = phys_to_virt(start_pa); // 物理地址转虚拟地址
-
-    println!(
-        " -> Heap range: PA: {:#x} => VA: {:#x}, Size: {} MB",
-        start_pa,
-        start_va,
-        HEAP_SIZE / 1024 / 1024
-    );
-
-    // 4. 初始化堆分配器
-    // 注意：init 接收的必须是 [虚拟地址]
-    unsafe {
-        HEAP_ALLOCATOR.lock().init(start_va, HEAP_SIZE);
-    }
+fn align_up(value: usize, align: usize) -> usize {
+    (value + align - 1) & !(align - 1)
 }
-// /// 初始化堆分配器
-// pub fn init_heap() {
-//     // 获取原始的堆边界
-//     let heap_start_raw = unsafe { &_heap_start as *const _ as usize };
-//     let heap_end_raw = unsafe { &_memory_end as *const _ as usize };
 
-//     // 对齐堆的起始地址
-//     //    `next_multiple_of` 可以将地址向上对齐到最近的页面边界
-//     // let heap_start = heap_start_raw.next_multiple_of(PAGE_SIZE);
-//     unsafe {
-//         HEAP_ALLOCATOR.init(heap_start_raw, heap_end_raw);
-//     }
-// }
+fn align_down(value: usize, align: usize) -> usize {
+    value & !(align - 1)
+}
+
+fn init_buddy_system() {}
