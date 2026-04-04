@@ -66,6 +66,11 @@ impl From<VirtAddr> for VirtPageNum {
         v.floor()
     }
 }
+impl From<VirtPageNum> for VirtAddr {
+    fn from(v: VirtPageNum) -> Self {
+        Self(v.0 << PAGE_SIZE_BITS)
+    }
+}
 impl From<usize> for VirtAddr {
     fn from(v: usize) -> Self {
         Self(v & ((1 << VA_WIDTH_SV39) - 1))
