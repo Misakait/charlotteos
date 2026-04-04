@@ -7,7 +7,7 @@ pub const PA_WIDTH_SV39: usize = 56;
 pub const VA_WIDTH_SV39: usize = 39;
 pub const PPN_WIDTH_SV39: usize = PA_WIDTH_SV39 - PAGE_SIZE_BITS;
 pub const VPN_WIDTH_SV39: usize = VA_WIDTH_SV39 - PAGE_SIZE_BITS;
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
 #[repr(transparent)]
 pub struct PhysAddr(pub usize);
 
@@ -22,7 +22,9 @@ pub struct PhysPageNum(pub usize);
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
 #[repr(transparent)]
 pub struct VirtPageNum(pub usize);
-
+trait CanNext {
+    fn next(&mut self);
+}
 impl VirtPageNum {
     pub fn indices(&self) -> [usize; 3] {
         let mut vpn = self.0;
@@ -34,6 +36,12 @@ impl VirtPageNum {
         idx
     }
 }
+impl CanNext for VirtPageNum {
+    fn next(&mut self) {
+        self.0 = self.0 + 1;
+    }
+}
+
 impl VirtAddr {
     pub fn floor(&self) -> VirtPageNum {
         VirtPageNum(self.0 >> PAGE_SIZE_BITS)
@@ -125,3 +133,43 @@ impl PhysPageNum {
         }
     }
 }
+#[derive(Clone, Copy, Debug)]
+pub struct Range<T>
+where
+    T: CanNext + Copy + Clone + Ord + PartialOrd + Eq + PartialEq,
+{
+    current: T,
+    end: T,
+}
+
+impl<T> Range<T>
+where
+    T: CanNext + Copy + Clone + Ord + PartialOrd + Eq + PartialEq,
+{
+    /// 创建一个左闭右开的区间 [start, end)
+    pub fn new(start: T, end: T) -> Self {
+        Self {
+            current: start,
+            end,
+        }
+    }
+}
+
+impl<T> Iterator for Range<T>
+where
+    T: CanNext + Copy + Clone + Ord + PartialOrd + Eq + PartialEq,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current < self.end {
+            let val = self.current;
+            self.current.next();
+            Some(val)
+        } else {
+            None
+        }
+    }
+}
+
+pub type VPNRange = Range<VirtPageNum>;
