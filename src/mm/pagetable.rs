@@ -5,7 +5,7 @@ use bitflags::bitflags;
 
 use crate::mm::{
     PAGE_SIZE,
-    address::{PPN_WIDTH_SV39, PhysAddr, PhysPageNum, VirtPageNum},
+    address::{PPN_WIDTH_SV39, PhysAddr, PhysPageNum, VirtAddr, VirtPageNum},
     buddy::phys_to_virt,
     memblock::MEMBLOCK,
 };
@@ -84,22 +84,42 @@ impl PageTable {
             entries: [PageTableEntry::empty(); 512],
         }
     }
-    pub fn bump_find_pte(&mut self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
-        let idxs = vpn.indices();
+    pub fn bump_find_pte(
+        &mut self,
+        vpn: VirtPageNum,
+        page_size: PageSize,
+    ) -> Option<&mut PageTableEntry> {
+        let indices = vpn.indices();
         let mut entries = &mut self.entries;
-        for i in 0..3 {
-            let pte = &mut entries[idxs[i]];
-            if i == 2 {
+
+        let target_level = match page_size {
+            PageSize::OneGB => 1,
+            PageSize::TwoMB => 2,
+            PageSize::FourKB => 3,
+        };
+
+        for i in 0..target_level {
+            let pte = &mut entries[indices[i]];
+            if i == target_level - 1 {
                 return Some(pte);
             }
             if !pte.is_valid() {
                 return None;
             }
+
+            let flags = pte.flags();
+            if flags.contains(PTEFlags::R)
+                || flags.contains(PTEFlags::W)
+                || flags.contains(PTEFlags::X)
+            {
+                return None;
+            }
+
             let phys_addr = PhysAddr::from(&pte.ppn()).0;
-            // let virt_addr = phys_to_virt(phys_addr);
+            let virt_addr = phys_to_virt(phys_addr);
             unsafe {
-                entries = &mut *(phys_addr as *mut [PageTableEntry; 512]);
-                // entries = &mut *(virt_addr as *mut [PageTableEntry; 512]);
+                // entries = &mut *(phys_addr as *mut [PageTableEntry; 512]);
+                entries = &mut *(virt_addr as *mut [PageTableEntry; 512]);
             }
         }
         None
@@ -227,13 +247,18 @@ impl PageTable {
         assert!(!pte.is_valid(), "vpn {:?} is mapped before mapping", vpn);
         *pte = PageTableEntry::new(ppn, flags | PTEFlags::V);
     }
-    pub fn unmap(&mut self, vpn: VirtPageNum) {
-        let pte = self.bump_find_pte(vpn).unwrap();
+
+    pub fn unmap(&mut self, vpn: VirtPageNum, size: PageSize) {
+        let pte = self.bump_find_pte(vpn, size).unwrap();
         assert!(
             pte.is_valid(),
             "vpn {:?} is must be valid before unmapping",
             vpn
         );
         *pte = PageTableEntry::empty();
+        let va = VirtAddr::from(vpn).0;
+        unsafe {
+            core::arch::asm!("sfence.vma {}, zero", in(reg) va);
+        }
     }
 }
