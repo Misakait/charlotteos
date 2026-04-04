@@ -16,9 +16,13 @@ mod trap;
 mod userlib;
 
 use crate::bsp::qemu_virt::UART_BASE;
+use crate::config::PHYS_VIRT_OFFSET;
+use crate::mm::buddy::phys_to_virt;
 use alloc::vec::Vec;
 
-use crate::mm::init_heap;
+use crate::mm::{
+    enable_virtual_memory, init_buddy_system, setup_memory_and_mapping, unmap_temp_identity_area,
+};
 use crate::task::SCHEDULER;
 use crate::task::context::TaskContext;
 use crate::task::scheduler::Scheduler;
@@ -37,6 +41,7 @@ global_asm!(include_str!("entry.S"));
 unsafe extern "C" {
     static _bss_start: usize;
     static _bss_end: usize;
+    static _ekernel: usize;
 }
 fn clear_bss() {
     // 这段代码会清空 BSS 段
@@ -64,15 +69,31 @@ lazy_static! {
     };
 }
 static mut KERNEL_INIT_CONTEXT: TaskContext = TaskContext::zero();
+
 #[unsafe(no_mangle)]
-pub extern "C" fn rust_main() {
+pub extern "C" fn rust_main(hart_id: usize, dtb_addr: usize) {
     // 清空 BSS 段
     clear_bss();
-
     // println!("Initializing heap...");
-    init_heap();
-    // println!("Heap initialized.");
+    setup_memory_and_mapping(dtb_addr);
+    enable_virtual_memory();
+    let next_fn_virt_addr = phys_to_virt(virt_rust_main as usize);
+    unsafe {
+        core::arch::asm!(
+            // 给栈指针 sp 加上高半区偏移量
+            "add sp, sp, {1}",
+            // 跳转到高半区虚拟地址
+            "jr {0}",
+            in(reg) next_fn_virt_addr,
+            in(reg) PHYS_VIRT_OFFSET,
+        );
+    }
+    unreachable!();
+}
 
+fn virt_rust_main() {
+    unmap_temp_identity_area();
+    init_buddy_system();
     unsafe {
         asm!("csrw sscratch, {}", in(reg) &raw mut KERNEL_INIT_CONTEXT);
         let stvec_addr = (trap_entry as usize) & !0x3;
@@ -112,6 +133,7 @@ pub extern "C" fn rust_main() {
     // loop {}
     sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::NoReason);
 }
+
 // #[unsafe(no_mangle)]
 fn test_task_a() {
     user_println!("[Task A] ✓ Start!");
