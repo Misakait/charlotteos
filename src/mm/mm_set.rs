@@ -1,7 +1,7 @@
 use alloc::{collections::btree_map::BTreeMap, vec::Vec};
 use bitflags::bitflags;
 
-use crate::mm::pagetable::PageTable;
+use crate::mm::{address::VPNRange, pagetable::PageTable};
 bitflags! {
     pub struct MapPermission: u8 {
         const R = 1 << 1;
@@ -13,16 +13,15 @@ bitflags! {
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum MapType {
-    Identical,
+    Linear,
     Framed,
 }
-// pub struct MapArea {
-//     vpn_range: VPNRange,
-//     data_frames: BTreeMap<VirtPageNum, FrameTracker>,
-//     map_type: MapType,
-//     map_perm: MapPermission,
-// }
-// pub struct MemorySet {
-//     page_table: PageTable,
-//     areas: Vec<MapArea>,
-// }
+pub struct MapArea {
+    vpn_range: VPNRange,
+    map_type: MapType,
+    map_perm: MapPermission,
+}
+pub struct MemorySet {
+    page_table: PageTable,
+    areas: Vec<MapArea>,
+}
