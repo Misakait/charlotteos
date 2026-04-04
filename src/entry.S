@@ -15,11 +15,7 @@ _start:
 	mv	tp, t0			# 将核心ID从 t0 移到 tp 寄存器中备份，以便后续使用
 	bnez	t0, park		# bnez (Branch if Not Equal to Zero): 如果 t0 不为零（即核心ID不是0），则跳转到 park 标签
 
-	# Setup stacks, the stack grows from bottom to top, so we put the
-	# stack pointer to the very end of the stack range.
-	# (注释有误，RISC-V 栈通常是向下生长的，但这里的计算逻辑是正确的)
 	# 为 0 号核心设置栈
-
 	slli	t0, t0, 14		# slli (Shift Left Logical Immediate): 将 t0 (此时必为0) 左移 14 位。
 					# 1^14 = 16384，所以这行相当于 t0 = t0 * STACK_SIZE。对于0号核心，t0 仍然是 0。
 	la	sp, stacks + STACK_SIZE	# la (Load Address): 将 `stacks` 标签的地址加上一个栈的大小(STACK_SIZE)，结果加载到 sp (栈指针)。
@@ -42,5 +38,3 @@ stacks:
 	# STACK_SIZE * 1: 预留 1 个核心的栈空间
 	# 这块内存就是所有核心的栈的总和。
 	.skip	STACK_SIZE * 1
-
-	.end
