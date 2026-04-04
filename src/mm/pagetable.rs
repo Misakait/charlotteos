@@ -4,10 +4,10 @@ use alloc::vec::Vec;
 use bitflags::bitflags;
 
 use crate::mm::{
-    BUMP_ALLOCATOR, FRAME_ALLOCATOR,
+    PAGE_SIZE,
     address::{PPN_WIDTH_SV39, PhysAddr, PhysPageNum, VirtPageNum},
     buddy::phys_to_virt,
-    frame_alloc, frame_dealloc,
+    memblock::MEMBLOCK,
 };
 
 bitflags! {
@@ -104,48 +104,59 @@ impl PageTable {
         }
         None
     }
-    pub fn bump_find_create_pte(&mut self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
-        let idxs = vpn.indices();
+    pub fn bump_find_create_pte(
+        &mut self,
+        vpn: VirtPageNum,
+        page_size: PageSize,
+    ) -> Option<&mut PageTableEntry> {
+        let indices = vpn.indices();
         let mut entries = &mut self.entries;
-        for i in 0..3 {
-            let pte = &mut entries[idxs[i]];
-            if i == 2 {
+
+        let target_level = match page_size {
+            PageSize::OneGB => 1,
+            PageSize::TwoMB => 2,
+            PageSize::FourKB => 3,
+        };
+
+        for i in 0..target_level {
+            let pte = &mut entries[indices[i]];
+            if i == target_level - 1 {
                 return Some(pte);
             }
             if !pte.is_valid() {
-                let ppn = BUMP_ALLOCATOR.borrow_mut().alloc_page().unwrap();
+                // 申请并清零下一级目录页
+                let allocated_addr = MEMBLOCK.lock().early_alloc(PAGE_SIZE, PAGE_SIZE).unwrap();
+
+                unsafe {
+                    core::ptr::write_bytes(allocated_addr.0 as *mut u8, 0, PAGE_SIZE);
+                }
+
+                let ppn = PhysPageNum::from(allocated_addr);
                 *pte = PageTableEntry::new(ppn, PTEFlags::V);
+            } else {
+                // 但它同时拥有 R, W, 或 X 权限
+                // 说明它是一个叶子节点 (大页)
+                let flags = pte.flags();
+                if flags.contains(PTEFlags::R)
+                    || flags.contains(PTEFlags::W)
+                    || flags.contains(PTEFlags::X)
+                {
+                    panic!(
+                        "FATAL: Tried to map a small page inside an existing large page at VPN {:?}",
+                        vpn
+                    );
+                }
             }
+
             let phys_addr = PhysAddr::from(&pte.ppn()).0;
-            // let virt_addr = phys_to_virt(phys_addr);
+
             unsafe {
-                // entries = &mut *(virt_addr as *mut [PageTableEntry; 512]);
                 entries = &mut *(phys_addr as *mut [PageTableEntry; 512]);
             }
         }
         None
     }
-    pub fn bump_find_create_pte_2mb(&mut self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
-        let idxs = vpn.indices();
-        let mut entries = &mut self.entries;
-        for i in 0..2 {
-            let pte = &mut entries[idxs[i]];
-            if i == 1 {
-                return Some(pte);
-            }
-            if !pte.is_valid() {
-                let ppn = BUMP_ALLOCATOR.borrow_mut().alloc_page().unwrap();
-                *pte = PageTableEntry::new(ppn, PTEFlags::V);
-            }
-            let phys_addr = PhysAddr::from(&pte.ppn()).0;
-            // let virt_addr = phys_to_virt(phys_addr);
-            unsafe {
-                // entries = &mut *(virt_addr as *mut [PageTableEntry; 512]);
-                entries = &mut *(phys_addr as *mut [PageTableEntry; 512]);
-            }
-        }
-        None
-    }
+
     pub fn find_pte(&mut self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
         let idxs = vpn.indices();
         let mut entries = &mut self.entries;
@@ -200,12 +211,7 @@ impl PageTable {
         flags: PTEFlags,
         size: PageSize,
     ) {
-        let pte = match size {
-            PageSize::FourKB => self.bump_find_create_pte(vpn).unwrap(),
-            PageSize::TwoMB => self.bump_find_create_pte_2mb(vpn).unwrap(),
-            PageSize::OneGB => unimplemented!(),
-        };
-
+        let pte = self.bump_find_create_pte(vpn, size).unwrap();
         assert!(!pte.is_valid(), "vpn {:?} is mapped before mapping", vpn);
         *pte = PageTableEntry::new(ppn, flags | PTEFlags::V);
     }
