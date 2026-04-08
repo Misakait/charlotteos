@@ -1,7 +1,7 @@
 use crate::config::PHYS_VIRT_OFFSET;
 use crate::mm::address::{PhysAddr, PhysPageNum};
 use crate::mm::{PAGE_SIZE, PAGE_SIZE_BITS};
-use crate::println;
+use crate::{println, sbi_println};
 use core::num::NonZeroUsize;
 use core::ptr::{NonNull, write_volatile};
 
@@ -30,21 +30,25 @@ impl BuddySystemFrameAllocator {
 
     /// 初始化分配器
     /// pa_start 和 pa_end 必须是页对齐的
-    pub unsafe fn add_free_region(&mut self, pa_start: usize, pa_end: usize) {
-        let start_addr = PhysAddr(pa_start);
-        let end_addr = PhysAddr(pa_end);
+    pub unsafe fn add_free_region(&mut self, align_start_ppn: usize, align_end_ppn: usize) {
+        // let start_addr = PhysAddr(pa_start);
+        // let end_addr = PhysAddr(pa_end);
         // start 必须向上取整 (ceil)，因为如果不满一页，那半页不能用
-        let align_start_ppn = start_addr.ceil().0;
-        // end 必须向下取整 (floor)，防止越界到非法的内存去
-        let align_end_ppn = end_addr.floor().0;
+        // let align_start_ppn = start_addr.ceil().0;
+        // // end 必须向下取整 (floor)，防止越界到非法的内存去
+        // let align_end_ppn = end_addr.floor().0;
 
         if align_start_ppn >= align_end_ppn {
             return; // 这块碎片太小了，连一页 4KB 都凑不齐，直接丢弃
         }
 
         let mut current_ppn = align_start_ppn;
-        println!("Buddy System Allocator initialized:");
-        println!("  -> Heap start: 0x{:x}, end: 0x{:x}", pa_start, pa_end);
+        // sbi_println!("Adding new region");
+        // sbi_println!(
+        //     "  -> Heap start: 0x{:x}, end: 0x{:x}",
+        //     PhysAddr::from(&PhysPageNum::from(align_start_ppn)).0,
+        //     PhysAddr::from(&PhysPageNum::from(align_end_ppn)).0
+        // );
         while current_ppn < align_end_ppn {
             let remaining_pages = align_end_ppn - current_ppn;
             if remaining_pages == 0 {
@@ -67,14 +71,14 @@ impl BuddySystemFrameAllocator {
             unsafe {
                 self.add_free_block(block_addr.0, order);
             }
-            println!(
-                "  -> Added block at 0x{:x},end at 0x{:x} size 0x{:x} ({} KB, {}MB)",
-                block_addr.0,
-                block_addr.0 + block_size,
-                block_size,
-                block_size / 1024,
-                block_size / 1024 / 1024
-            );
+            // sbi_println!(
+            //     "  -> Added block at 0x{:x},end at 0x{:x} size 0x{:x} ({} KB, {}MB)",
+            //     block_addr.0,
+            //     block_addr.0 + block_size,
+            //     block_size,
+            //     block_size / 1024,
+            //     block_size / 1024 / 1024
+            // );
             current_ppn += block_pages;
         }
     }
