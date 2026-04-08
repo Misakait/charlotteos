@@ -21,8 +21,8 @@ use core::alloc::{GlobalAlloc, Layout};
 use core::arch::asm;
 use core::cell::RefCell;
 use core::num::NonZeroUsize;
-use core::ptr;
 use core::ptr::NonNull;
+use core::ptr::{self, write_bytes};
 use fdt::Fdt;
 use lazy_static::lazy_static;
 use riscv::register::satp::{self, Mode, Satp};
@@ -45,8 +45,6 @@ unsafe extern "C" {
     static _bss_start_with_stack: usize;
     static _bss_start: usize;
     static _bss_end: usize;
-    static _memory_end: usize;
-    static _memory_start: usize;
 }
 pub enum Slab {
     Slub {
@@ -85,6 +83,7 @@ pub fn get_page_state(ppn: PhysPageNum) -> &'static mut Page {
 static BOOT_ROOT_PPN: SyncRefCell<PhysPageNum> = unsafe { SyncRefCell::new(PhysPageNum(0)) };
 
 pub fn setup_memory_and_mapping(dtb_addr: usize) {
+    // 这些链接脚本提供的也是物理上的
     let stext = unsafe { &_text_start as *const _ as usize };
     let etext = unsafe { &_text_end as *const _ as usize };
     let srodata = unsafe { &_rodata_start as *const _ as usize };
@@ -114,41 +113,44 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
     MEMBLOCK
         .lock()
         .init_add_memory(PhysAddr(ram_base), ram_size);
-    polling_println!("Memblock init: raw_ram -> {:#x}..{:#x}", ram_base, ram_end);
+    // polling_println!("Memblock init: raw_ram -> {:#x}..{:#x}", ram_base, ram_end);
 
     // 在 Memblock 中把内核占用的物理内存抠掉
     MEMBLOCK
         .lock()
         .reserve_memory(PhysAddr(skernel), ekernel - skernel);
-    polling_println!("Memblock reserve: kernel -> {:#x}..{:#x}", skernel, ekernel);
+    // polling_println!("Memblock reserve: kernel -> {:#x}..{:#x}", skernel, ekernel);
 
     // 处理头部旧标准的保留内存声明
     for reserved in fdt.memory_reservations() {
         MEMBLOCK
             .lock()
             .reserve_memory(PhysAddr(reserved.address() as usize), reserved.size());
-        polling_println!(
-            "Memblock reserve: reserve_memory -> {:#x}..{:#x}",
-            reserved.address() as usize,
-            reserved.size() + reserved.size()
-        );
+        // polling_println!(
+        //     "Memblock reserve: reserve_memory -> {:#x}..{:#x}",
+        //     reserved.address() as usize,
+        //     reserved.size() + reserved.size()
+        // );
     }
 
     // 在 Memblock 抠除 DTB 数据本身的占用
     MEMBLOCK
         .lock()
         .reserve_memory(PhysAddr(dtb_addr), fdt.total_size());
-    polling_println!(
-        "Memblock reserve: dtb -> {:#x}..{:#x}",
-        dtb_addr,
-        fdt.total_size() + dtb_addr
-    );
+    // polling_println!(
+    //     "Memblock reserve: dtb -> {:#x}..{:#x}",
+    //     dtb_addr,
+    //     fdt.total_size() + dtb_addr
+    // );
 
     // 申请根页表 (此时 Memblock 已经有内存了，可以安心申请)
     let root_pa = MEMBLOCK
         .lock()
         .early_alloc(PAGE_SIZE, PAGE_SIZE)
         .expect("boot root page table allocation failed");
+    unsafe {
+        write_bytes(root_pa.0 as *mut u8, 0, PAGE_SIZE);
+    }
     let root_pt = unsafe { &mut *(root_pa.0 as *mut PageTable) };
 
     for node in fdt.all_nodes() {
@@ -167,11 +169,11 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
                     if base >= ram_base && end <= ram_end {
                         // 落在 RAM 里的区间,这是固件保留区 (比如 SBI)
                         MEMBLOCK.lock().reserve_memory(PhysAddr(base), size);
-                        polling_println!(
-                            "Memblock reserve: reserve_memory -> {:#x}..{:#x}",
-                            base,
-                            base + size
-                        );
+                        // polling_println!(
+                        //     "Memblock reserve: reserve_memory -> {:#x}..{:#x}",
+                        //     base,
+                        //     base + size
+                        // );
                     } else {
                         map_segment(
                             base,
@@ -180,7 +182,7 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
                             BootMapType::Linear,
                             MapAction::Map(PTEFlags::R | PTEFlags::W),
                         );
-                        polling_println!("Mapped MMIO: {} -> {:#x}..{:#x}", node.name, base, end);
+                        // polling_println!("Mapped MMIO: {} -> {:#x}..{:#x}", node.name, base, end);
                     }
                 }
             }
@@ -201,7 +203,7 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         BootMapType::Identical,
         MapAction::Map(PTEFlags::R | PTEFlags::X),
     );
-    polling_println!("Mapped text -> {:#x}..{:#x}", stext, etext);
+    // polling_println!("Mapped text -> {:#x}..{:#x}", stext, etext);
     map_segment(
         srodata,
         erodata,
@@ -216,7 +218,7 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         BootMapType::Identical,
         MapAction::Map(PTEFlags::R),
     );
-    polling_println!("Mapped rodata -> {:#x}..{:#x}", srodata, erodata);
+    // polling_println!("Mapped rodata -> {:#x}..{:#x}", srodata, erodata);
     map_segment(
         sdata,
         edata,
@@ -231,7 +233,7 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         BootMapType::Identical,
         MapAction::Map(PTEFlags::R | PTEFlags::W),
     );
-    polling_println!("Mapped data -> {:#x}..{:#x}", sdata, edata);
+    // polling_println!("Mapped data -> {:#x}..{:#x}", sdata, edata);
     map_segment(
         sbss_with_stack,
         ebss,
@@ -246,7 +248,7 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         BootMapType::Identical,
         MapAction::Map(PTEFlags::R | PTEFlags::W),
     );
-    polling_println!("Mapped bss -> {:#x}..{:#x}", sbss_with_stack, ebss);
+    // polling_println!("Mapped bss -> {:#x}..{:#x}", sbss_with_stack, ebss);
 
     // 内核终点到物理内存终点
     let ram_start_after_kernel = align_up(ekernel, PAGE_SIZE);
@@ -257,11 +259,11 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         BootMapType::Linear,
         MapAction::Map(PTEFlags::R | PTEFlags::W),
     );
-    polling_println!(
-        "Mapped kernel -> {:#x}..{:#x}",
-        ram_start_after_kernel,
-        ram_end
-    );
+    // polling_println!(
+    //     "Mapped kernel -> {:#x}..{:#x}",
+    //     ram_start_after_kernel,
+    //     ram_end
+    // );
 
     map_segment(
         ram_base,
@@ -270,11 +272,11 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         BootMapType::Linear,
         MapAction::Map(PTEFlags::R | PTEFlags::W),
     );
-    polling_println!(
-        "Mapped RAM before kernel -> {:#x}..{:#x}",
-        ram_base,
-        skernel
-    );
+    // polling_println!(
+    //     "Mapped RAM before kernel -> {:#x}..{:#x}",
+    //     ram_base,
+    //     skernel
+    // );
 
     // 设置内核根页表的PPN
     *BOOT_ROOT_PPN.borrow_mut() = PhysPageNum::from(root_pa);
@@ -292,11 +294,11 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         .early_alloc(mem_map_pages * PAGE_SIZE, PAGE_SIZE)
         .expect("Failed to allocate physical memory for mem_map array");
 
-    polling_println!(
-        "Allocated mem_map array: {} pages at PA {:#x}",
-        mem_map_pages,
-        mem_map_pa.0
-    );
+    // polling_println!(
+    //     "Allocated mem_map array: {} pages at PA {:#x}",
+    //     mem_map_pages,
+    //     mem_map_pa.0
+    // );
 
     unsafe {
         RAM_START_PPN = ram_start_ppn;
@@ -443,7 +445,7 @@ pub fn enable_virtual_memory() {
         satp::write(satp);
         asm!("sfence.vma");
     }
-
+    // 函数地址依旧是物理实际上的
     let next_fn_virt_addr = phys_to_virt(virt_rust_main as fn() as *const () as usize);
     unsafe {
         core::arch::asm!(
