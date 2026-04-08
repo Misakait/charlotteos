@@ -1,3 +1,4 @@
+use crate::mm::buddy::phys_to_virt;
 use crate::mm::{PAGE_SIZE, PAGE_SIZE_BITS};
 
 use core::convert::From;
@@ -15,7 +16,7 @@ pub struct PhysAddr(pub usize);
 #[repr(transparent)]
 pub struct VirtAddr(pub usize);
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
 #[repr(transparent)]
 pub struct PhysPageNum(pub usize);
 
@@ -68,12 +69,14 @@ impl From<VirtAddr> for VirtPageNum {
 }
 impl From<VirtPageNum> for VirtAddr {
     fn from(v: VirtPageNum) -> Self {
-        Self(v.0 << PAGE_SIZE_BITS)
+        Self::from(v.0 << PAGE_SIZE_BITS)
     }
 }
 impl From<usize> for VirtAddr {
     fn from(v: usize) -> Self {
-        Self(v & ((1 << VA_WIDTH_SV39) - 1))
+        // 25=64-39
+        let valid_va = ((v << 25) as isize >> 25) as usize;
+        Self(valid_va)
     }
 }
 impl From<usize> for VirtPageNum {
@@ -134,7 +137,8 @@ impl PhysPageNum {
     pub fn clear(&self) {
         let pa = PhysAddr::from(self);
         unsafe {
-            ptr::write_bytes(pa.0 as *mut u8, 0, PAGE_SIZE);
+            let va = phys_to_virt(pa.0);
+            ptr::write_bytes(va as *mut u8, 0, PAGE_SIZE);
         }
     }
 }
