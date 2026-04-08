@@ -15,7 +15,7 @@ pub struct TaskControlBlock {
     pub task_id: usize,
     pub entry_point: (usize, usize),
     pub stack_base: NonNull<u8>,
-    pub layout: Layout,
+    pub page_count: usize,
     pub priority: u8,
     pub status: TaskStatus,
     pub context: TaskContext,
