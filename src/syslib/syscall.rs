@@ -96,7 +96,9 @@ pub fn uart_read(ctx: &mut TaskContext) -> usize {
 pub fn uart_write_byte(ctx: &mut TaskContext) -> usize {
     ctx.sepc += 4;
     let byte = (ctx.a0 & 0xff) as u8;
-    let _ = UART.lock().putchar(byte);
+    #[allow(deprecated)]
+    sbi_rt::legacy::console_putchar(byte as usize);
+    // let _ = UART.lock().putchar(byte);
     ctx.a0 = 0;
     ctx.sepc
 }
