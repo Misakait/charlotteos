@@ -74,26 +74,16 @@ static mut KERNEL_INIT_CONTEXT: TaskContext = TaskContext::zero();
 pub extern "C" fn rust_main(hart_id: usize, dtb_addr: usize) {
     // 清空 BSS 段
     clear_bss();
-    // println!("Initializing heap...");
     setup_memory_and_mapping(dtb_addr);
     enable_virtual_memory();
-    let next_fn_virt_addr = phys_to_virt(virt_rust_main as usize);
-    unsafe {
-        core::arch::asm!(
-            // 给栈指针 sp 加上高半区偏移量
-            "add sp, sp, {1}",
-            // 跳转到高半区虚拟地址
-            "jr {0}",
-            in(reg) next_fn_virt_addr,
-            in(reg) PHYS_VIRT_OFFSET,
-        );
-    }
+
     unreachable!();
 }
 
 fn virt_rust_main() {
     unmap_temp_identity_area();
     init_buddy_system();
+    sbi_println!("Buddy System Allocator initialized");
     unsafe {
         asm!("csrw sscratch, {}", in(reg) &raw mut KERNEL_INIT_CONTEXT);
         let stvec_addr = (trap_entry as usize) & !0x3;
@@ -101,10 +91,10 @@ fn virt_rust_main() {
     }
     // println!("vec ptr: {:#X}", vec.as_ptr() as *const usize as usize);
     // polling_println!("polling");
-    println!("Hello from Charlotte OS!");
+    sbi_println!("Hello from Charlotte OS!");
     // 初始化调度器并创建 idle 任务
     let _ = Scheduler::init();
-    println!("✓ Scheduler initialized with idle task");
+    sbi_println!("✓ Scheduler initialized with idle task");
 
     // 创建测试任务
     {
@@ -120,8 +110,8 @@ fn virt_rust_main() {
             .expect("Failed to spawn task shell");
     } // 锁在这里释放
 
-    println!("All tasks created. Starting scheduler...");
-    println!("======================================================");
+    sbi_println!("All tasks created. Starting scheduler...");
+    sbi_println!("======================================================");
     unsafe {
         set_next_timer_tick();
         init_supervisor_interrupts();

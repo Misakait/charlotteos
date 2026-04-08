@@ -5,19 +5,20 @@ pub mod bump;
 pub mod memblock;
 pub mod mm_set;
 pub mod pagetable;
+pub mod slub;
 
 use crate::config::PHYS_VIRT_OFFSET;
 use crate::data_struct::sync_ref_cell::SyncRefCell;
 use crate::mm::address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
-use crate::mm::buddy::phys_to_virt;
+use crate::mm::buddy::{phys_to_virt, virt_to_phys};
 use crate::mm::bump::BumpAllocator;
 use crate::mm::memblock::MEMBLOCK;
 use crate::mm::pagetable::{FrameTracker, PTEFlags, PageSize, PageTable};
-use crate::{polling_println, println};
+use crate::mm::slub::KmemCache;
+use crate::{polling_println, println, sbi_println, virt_rust_main};
 use buddy::BuddySystemFrameAllocator;
 use core::alloc::{GlobalAlloc, Layout};
 use core::arch::asm;
-use core::arch::riscv64::sfence_vma_all;
 use core::cell::RefCell;
 use core::num::NonZeroUsize;
 use core::ptr;
@@ -27,6 +28,7 @@ use lazy_static::lazy_static;
 use riscv::register::satp::{self, Mode, Satp};
 use spin::Mutex;
 use spin::mutex::SpinMutex;
+
 pub const PAGE_SIZE_BITS: usize = 12;
 pub const PAGE_SIZE: usize = 1 << PAGE_SIZE_BITS; // 4KB
 
@@ -46,7 +48,40 @@ unsafe extern "C" {
     static _memory_end: usize;
     static _memory_start: usize;
 }
+pub enum Slab {
+    Slub {
+        freelist: VirtAddr,
+        inuse: u16,
+        cache: NonNull<KmemCache>,
+        has_next: bool,
+        next_partial: PhysPageNum,
+    },
+    SlubTail {
+        head_page_ppn: PhysPageNum,
+    },
+}
+pub enum PageState {
+    Reserved,
+    Slab(Slab),
+    Free,
+    PageTable,
+}
 
+pub struct Page {
+    pub ref_count: u8,
+    pub state: PageState,
+}
+pub static mut MEM_MAP: &mut [Page] = &mut [];
+pub static mut RAM_START_PPN: usize = 0;
+pub static mut RAM_END_PPN: usize = 0;
+pub static mut MEM_MAP_PA: PhysAddr = PhysAddr(0);
+
+pub fn get_page_state(ppn: PhysPageNum) -> &'static mut Page {
+    unsafe {
+        let idx = ppn.0 - RAM_START_PPN;
+        &mut MEM_MAP[idx]
+    }
+}
 static BOOT_ROOT_PPN: SyncRefCell<PhysPageNum> = unsafe { SyncRefCell::new(PhysPageNum(0)) };
 
 pub fn setup_memory_and_mapping(dtb_addr: usize) {
@@ -138,7 +173,13 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
                             base + size
                         );
                     } else {
-                        map_segment(base, end, PTEFlags::R | PTEFlags::W, root_pt);
+                        map_segment(
+                            base,
+                            end,
+                            root_pt,
+                            BootMapType::Linear,
+                            MapAction::Map(PTEFlags::R | PTEFlags::W),
+                        );
                         polling_println!("Mapped MMIO: {} -> {:#x}..{:#x}", node.name, base, end);
                     }
                 }
@@ -222,8 +263,46 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         ram_end
     );
 
-    //  将根页表移交给激活阶段
+    map_segment(
+        ram_base,
+        skernel,
+        root_pt,
+        BootMapType::Linear,
+        MapAction::Map(PTEFlags::R | PTEFlags::W),
+    );
+    polling_println!(
+        "Mapped RAM before kernel -> {:#x}..{:#x}",
+        ram_base,
+        skernel
+    );
+
+    // 设置内核根页表的PPN
     *BOOT_ROOT_PPN.borrow_mut() = PhysPageNum::from(root_pa);
+
+    let ram_start_ppn = ram_base >> PAGE_SIZE_BITS;
+    let ram_end_ppn = ram_end >> PAGE_SIZE_BITS;
+    let total_pages = ram_end_ppn - ram_start_ppn;
+
+    let mem_map_size = total_pages * core::mem::size_of::<Page>();
+    let mem_map_pages = (mem_map_size + PAGE_SIZE - 1) >> PAGE_SIZE_BITS;
+
+    // 向 Memblock 申请最后一块物理内存，存放 mem_map 自身
+    let mem_map_pa = MEMBLOCK
+        .lock()
+        .early_alloc(mem_map_pages * PAGE_SIZE, PAGE_SIZE)
+        .expect("Failed to allocate physical memory for mem_map array");
+
+    polling_println!(
+        "Allocated mem_map array: {} pages at PA {:#x}",
+        mem_map_pages,
+        mem_map_pa.0
+    );
+
+    unsafe {
+        RAM_START_PPN = ram_start_ppn;
+        RAM_END_PPN = ram_end_ppn;
+        MEM_MAP_PA = mem_map_pa;
+    }
 }
 enum BootMapType {
     Identical,
@@ -260,7 +339,7 @@ pub fn map_segment(
                 root_pt.bump_map(vpn, PhysPageNum::from(PhysAddr(pa)), flags, size);
             }
             MapAction::Unmap => {
-                root_pt.unmap(vpn, size); // 直接复用你上一轮修好的完美 unmap
+                root_pt.unmap(vpn, size);
             }
         }
     };
@@ -298,30 +377,59 @@ type LockedBuddyAllocator = SpinMutex<BuddySystemFrameAllocator>;
 pub static BUDDY_ALLOCATOR: LockedBuddyAllocator = SpinMutex::new(BuddySystemFrameAllocator::new());
 
 pub fn init_buddy_system() {
+    let ram_start = unsafe { RAM_START_PPN };
+    let ram_end = unsafe { RAM_END_PPN };
+    // sbi_println!("ram_start_ppn:{:#X},ram_end_ppn{:#X}", ram_start, ram_end);
+    let total_pages = ram_end - ram_start;
+    let mem_map_pa = unsafe { MEM_MAP_PA };
+    let mem_map_va = phys_to_virt(mem_map_pa.0);
+    unsafe {
+        MEM_MAP = core::slice::from_raw_parts_mut(mem_map_va as *mut Page, total_pages);
+    }
+    for i in 0..total_pages {
+        unsafe {
+            MEM_MAP[i] = Page {
+                ref_count: 1,
+                state: PageState::Reserved,
+            };
+        }
+    }
+
     let mb = MEMBLOCK.lock();
     let mut buddy = BUDDY_ALLOCATOR.lock();
+    let mut free_pages_count: usize = 0;
 
-    polling_println!("--- Transferring memory from Memblock to Buddy System ---");
-
-    // 遍历 Memblock 中所有真正可用的物理内存碎片
+    sbi_println!("Buddy System Allocator initialing:");
+    // 遍历 Memblock 中剩余的 available
     for i in 0..mb.available.count {
         let region = &mb.available.regions[i];
 
-        let start_pa = region.base.0;
-        let end_pa = region.base.0 + region.size;
+        // 计算这块内存的起始和结束页号
+        let start_addr = PhysAddr::from(region.base.0);
+        let end_addr = PhysAddr::from(region.base.0 + region.size);
+        let start_ppn = start_addr.ceil().0; // 向上取整，丢弃开头不完整的半页
+        let end_ppn = end_addr.floor().0;
 
-        polling_println!(
-            "Transferring region: {:#x}..{:#x} (Size: {} KB)",
-            start_pa,
-            end_pa,
-            region.size / 1024
-        );
-
+        // 在mem_map里，把这批页面的状态改写为 Free并加入Buddy System
+        for ppn_idx in start_ppn..end_ppn {
+            let local_idx = ppn_idx - ram_start;
+            unsafe {
+                MEM_MAP[local_idx] = Page {
+                    ref_count: 0,
+                    state: PageState::Free,
+                };
+            }
+            free_pages_count += 1;
+        }
         unsafe {
-            buddy.add_free_region(start_pa, end_pa);
+            buddy.add_free_region(start_ppn, end_ppn);
         }
     }
-    polling_println!("--- Transfer Complete! ---");
+    // sbi_println!(
+    //     "Handover Complete: {} total pages mapped. {} pages handed to Buddy.",
+    //     total_pages,
+    //     free_pages_count
+    // );
 }
 
 pub fn enable_virtual_memory() {
@@ -335,21 +443,42 @@ pub fn enable_virtual_memory() {
         satp::write(satp);
         asm!("sfence.vma");
     }
+
+    let next_fn_virt_addr = phys_to_virt(virt_rust_main as fn() as *const () as usize);
+    unsafe {
+        core::arch::asm!(
+            "add sp, sp, {offset}",
+            "add s0, s0, {offset}",
+            "jr {target}",
+            offset = in(reg) PHYS_VIRT_OFFSET,
+            target = in(reg) next_fn_virt_addr,
+            options(noreturn)
+        );
+    }
 }
 
 pub fn unmap_temp_identity_area() {
-    let stext = unsafe { &_text_start as *const _ as usize };
-    let etext = unsafe { &_text_end as *const _ as usize };
-    let srodata = unsafe { &_rodata_start as *const _ as usize };
-    let erodata = unsafe { &_rodata_end as *const _ as usize };
-    let sdata = unsafe { &_data_start as *const _ as usize };
-    let edata = unsafe { &_data_end as *const _ as usize };
-    let sbss_with_stack = unsafe { &_bss_start_with_stack as *const _ as usize };
-    let ebss = unsafe { &_bss_end as *const _ as usize };
+    // let stext = unsafe { &_text_start as *const _ as usize };
+    // let etext = unsafe { &_text_end as *const _ as usize };
+    // let srodata = unsafe { &_rodata_start as *const _ as usize };
+    // let erodata = unsafe { &_rodata_end as *const _ as usize };
+    // let sdata = unsafe { &_data_start as *const _ as usize };
+    // let edata = unsafe { &_data_end as *const _ as usize };
+    // let sbss_with_stack = unsafe { &_bss_start_with_stack as *const _ as usize };
+    // let ebss = unsafe { &_bss_end as *const _ as usize };
+    let stext = virt_to_phys(unsafe { &_text_start as *const _ as usize });
+    let etext = virt_to_phys(unsafe { &_text_end as *const _ as usize });
+    let srodata = virt_to_phys(unsafe { &_rodata_start as *const _ as usize });
+    let erodata = virt_to_phys(unsafe { &_rodata_end as *const _ as usize });
+    let sdata = virt_to_phys(unsafe { &_data_start as *const _ as usize });
+    let edata = virt_to_phys(unsafe { &_data_end as *const _ as usize });
+    let sbss_with_stack = virt_to_phys(unsafe { &_bss_start_with_stack as *const _ as usize });
+    let ebss = virt_to_phys(unsafe { &_bss_end as *const _ as usize });
 
     let ppn: PhysAddr = (&*BOOT_ROOT_PPN.borrow()).into();
     let root_pa = ppn;
-    let root_pt = unsafe { &mut *(root_pa.0 as *mut PageTable) };
+    let root_pt_va = phys_to_virt(root_pa.0);
+    let root_pt = unsafe { &mut *(root_pt_va as *mut PageTable) };
 
     map_segment(
         stext,
