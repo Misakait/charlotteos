@@ -17,7 +17,7 @@ mod userlib;
 
 use crate::bsp::qemu_virt::UART_BASE;
 use crate::config::PHYS_VIRT_OFFSET;
-use crate::mm::buddy::phys_to_virt;
+use crate::mm::buddy::{phys_to_virt, virt_to_phys};
 use alloc::vec::Vec;
 
 use crate::mm::{
@@ -38,25 +38,6 @@ use spin::Mutex;
 // 这行代码会把 entry.S 的内容直接嵌入到编译流程中
 global_asm!(include_str!("entry.S"));
 
-unsafe extern "C" {
-    static _bss_start: usize;
-    static _bss_end: usize;
-    static _ekernel: usize;
-}
-fn clear_bss() {
-    // 这段代码会清空 BSS 段
-    let bss_start = unsafe { &_bss_start as *const _ as usize };
-    let bss_end = unsafe { &_bss_end as *const _ as usize };
-    //     println!("BSS start: {:x?}", bss_start);
-    //     println!("BSS end: {:x?}", bss_end);
-    let bss_size = bss_end - bss_start;
-    unsafe {
-        // 从裸指针和长度，创建一个可变的切片
-        let bss_slice = slice::from_raw_parts_mut(bss_start as *mut u8, bss_size);
-        // 调用切片的 fill 方法，高效地将整个区域清零
-        bss_slice.fill(0);
-    }
-}
 // 使用 lazy_static! 来创建我们唯一的、带锁的 UART 实例。
 // 这是整个系统中对物理串口硬件的唯一表示。
 lazy_static! {
@@ -72,8 +53,8 @@ static mut KERNEL_INIT_CONTEXT: TaskContext = TaskContext::zero();
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_main(hart_id: usize, dtb_addr: usize) {
-    // 清空 BSS 段
-    clear_bss();
+    // 清空 BSS 段的工作在汇编完成
+    // clear_bss();
     setup_memory_and_mapping(dtb_addr);
     enable_virtual_memory();
 

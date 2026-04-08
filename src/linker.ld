@@ -6,14 +6,18 @@ ENTRY(_start)
 
 /* 2. 定义内存的基地址 */
 /* 对于S模式内核，RustSBI 后内核从 0x80200000 开始 */
-BASE_ADDRESS = 0x80200000;
+PHYS_BASE = 0x80200000;
+/* 更新为内核运行在内存高半区 */
+BASE_ADDRESS = 0xffffffff80200000;
+OFFSET = BASE_ADDRESS - PHYS_BASE;
 
 /* 3. 定义内存区域以及属性 */
-MEMORY
+
+/*MEMORY
 {
     ram (rwxa) : ORIGIN = 0x80200000, LENGTH = 126M
 	/*ram   (wxa!ri) : ORIGIN = 0x80000000, LENGTH = 128M*/
-}
+/*}*/
 
 /* 4. 定义段(SECTIONS)，这是核心部分 */
 SECTIONS
@@ -23,7 +27,7 @@ SECTIONS
     PROVIDE(_skernel = .);
     /* .text 段: 存放所有可执行代码 */
     /* ALIGN(4K) 确保代码段4K字节对齐 */
-    .text : ALIGN(4K) {
+    .text : AT(ADDR(.text) - OFFSET) ALIGN(4K) {
         /* 定义一个名为 _text_start 的符号，其地址为当前位置 */
         PROVIDE(_text_start = .);
 
@@ -35,25 +39,25 @@ SECTIONS
         *(.text .text.*)
 
         PROVIDE(_text_end = .);
-    } > ram
+    } /* > ram */
 
     /* .rodata 段: 存放所有只读数据, 例如字符串字面量 */
-    .rodata : ALIGN(4K) {
+    .rodata : AT(ADDR(.rodata) - OFFSET) ALIGN(4K) {
         PROVIDE(_rodata_start = .);
         *(.rodata .rodata.*)
         PROVIDE(_rodata_end = .);
-    } > ram
+    } /* > ram */
 
     /* .data 段: 存放所有已初始化的全局变量和静态变量 */
-    .data : ALIGN(4K) {
+    .data : AT(ADDR(.data) - OFFSET) ALIGN(4K) {
         PROVIDE(_data_start = .);
         *(.data .data.*)
         PROVIDE(_data_end = .);
-    } > ram
+    } /* > ram */
 
     /* .bss 段: 存放所有未初始化的全局变量和静态变量 */
     /* 内核启动后，需要自己负责将这块内存清零 */
-    .bss : ALIGN(4K) {
+    .bss : AT(ADDR(.bss) - OFFSET) ALIGN(4K) {
         PROVIDE(_bss_start_with_stack = .);
         *(.bss.stack)
         PROVIDE(_bss_start = .);
@@ -61,13 +65,13 @@ SECTIONS
         *(.bss .bss.*)
         *(COMMON)
         PROVIDE(_bss_end = .);
-    } > ram
+    } /* > ram */
 
+    PROVIDE(_ekernel = _bss_end);
 
-    PROVIDE(_memory_start = ORIGIN(ram));
+   /* PROVIDE(_memory_start = ORIGIN(ram));
     PROVIDE(_memory_end = ORIGIN(ram) + LENGTH(ram));
 
-    /* .heap 段: 用于动态分配内存 */
     PROVIDE(_ekernel = _bss_end);
-    PROVIDE(_heap_size = _memory_end - _ekernel);
+    PROVIDE(_heap_size = _memory_end - _ekernel); */
 }

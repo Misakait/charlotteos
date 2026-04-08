@@ -18,12 +18,26 @@ _start:
 	# 为 0 号核心设置栈
 	slli	t0, t0, 14		# slli (Shift Left Logical Immediate): 将 t0 (此时必为0) 左移 14 位。
 					# 1^14 = 16384，所以这行相当于 t0 = t0 * STACK_SIZE。对于0号核心，t0 仍然是 0。
-	la	sp, stacks + STACK_SIZE	# la (Load Address): 将 `stacks` 标签的地址加上一个栈的大小(STACK_SIZE)，结果加载到 sp (栈指针)。
+	#la	sp, stacks + STACK_SIZE	# la (Load Address): 将 `stacks` 标签的地址加上一个栈的大小(STACK_SIZE)，结果加载到 sp (栈指针)。
 					# 这将 sp 指向了第一个栈空间的末尾（高地址处）。
+	lla sp, stacks        # 拿到 stacks 的物理基址
+    li t1, STACK_SIZE    # 加载一个栈的大小
+    add sp, sp, t1        # sp 移到当前核心栈的顶部 (高地址)
 	add	sp, sp, t0		# 将 sp 和 t0 相加。对于0号核心，t0是0，所以 sp 不变。
 					# (对于其他核心，这行代码会将 sp 指向属于它们自己的栈空间)
+	# 清空bss
+	lla   t0, _bss_start_with_stack
+    lla   t1, _bss_end
+clear_bss_loop:
+    bgeu  t0, t1, clear_bss_done # 如果 t0 >= t1，清空完毕
+    sd    zero, 0(t0)            # 写入 64 位的 0
+    addi  t0, t0, 8              # 地址 + 8
+    j     clear_bss_loop
+clear_bss_done:
 
-	j rust_main
+	lla t1, rust_main
+	jr t1
+	#j rust_main
 park:
 	wfi				# wfi (Wait For Interrupt): 让CPU核心进入低功耗睡眠状态，直到被中断唤醒。
 	j	park			# 非 0 号核心在这里无限循环等待，进入“待命”状态 😴
