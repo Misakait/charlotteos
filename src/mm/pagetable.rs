@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use bitflags::bitflags;
 
 use crate::mm::{
-    PAGE_SIZE,
+    BUDDY_ALLOCATOR, LockedBuddyAllocator, PAGE_SIZE,
     address::{PPN_WIDTH_SV39, PhysAddr, PhysPageNum, VirtAddr, VirtPageNum},
     buddy::phys_to_virt,
     memblock::MEMBLOCK,
@@ -34,7 +34,9 @@ impl FrameTracker {
 }
 impl Drop for FrameTracker {
     fn drop(&mut self) {
-        frame_dealloc(self.ppn);
+        BUDDY_ALLOCATOR
+            .lock()
+            .dealloc(self.ppn, NonZeroUsize::new(1).unwrap());
     }
 }
 pub enum PageSize {
@@ -209,9 +211,12 @@ impl PageTable {
                 return Some(pte);
             }
             if !pte.is_valid() {
-                let frame = frame_alloc().unwrap();
-                *pte = PageTableEntry::new(frame.ppn, PTEFlags::V);
-                frames.push(frame);
+                let ppn = BUDDY_ALLOCATOR
+                    .lock()
+                    .alloc(NonZeroUsize::new(1).unwrap())
+                    .unwrap();
+                *pte = PageTableEntry::new(ppn, PTEFlags::V);
+                frames.push(FrameTracker { ppn });
             }
             let phys_addr = PhysAddr::from(&pte.ppn()).0;
             let virt_addr = phys_to_virt(phys_addr);
