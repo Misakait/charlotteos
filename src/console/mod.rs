@@ -82,3 +82,37 @@ macro_rules! polling_println {
     () => ($crate::polling_print!("\n"));
     ($($arg:tt)*) => ($crate::polling_print!("{}\n", format_args!($($arg)*)));
 }
+
+struct SbiWriter;
+
+impl Write for SbiWriter {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        for byte in s.bytes() {
+            #[allow(deprecated)]
+            sbi_rt::legacy::console_putchar(byte as usize);
+        }
+        Ok(())
+    }
+}
+
+#[doc(hidden)]
+pub fn _sbi_print(args: fmt::Arguments) {
+    SbiWriter.write_fmt(args).unwrap();
+}
+
+#[macro_export]
+macro_rules! sbi_print {
+    ($($arg:tt)*) => {
+        $crate::console::_sbi_print(format_args!($($arg)*))
+    };
+}
+
+#[macro_export]
+macro_rules! sbi_println {
+    () => {
+        $crate::sbi_print!("\n")
+    };
+    ($($arg:tt)*) => {
+        $crate::sbi_print!("{}\n", format_args!($($arg)*))
+    };
+}
