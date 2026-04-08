@@ -10,10 +10,11 @@ harness = false
 [dependencies]
 lazy_static = { version = "1", features = ["spin_no_std"] }
 spin = "0.10.0"
-sbi-rt = "0.0.3"
+sbi-rt = { version = "0.0.3", features = ["legacy"] }
 bitflags = "2.10.0"
 riscv = { version = "0.16.0", features = ["s-mode"] }
 fdt = "0.1.5"
+thiserror-no-std = "2.0.2"
 
 [features]
 default = ["uart_interrupt"]
