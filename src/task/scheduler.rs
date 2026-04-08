@@ -1,5 +1,9 @@
 use crate::{
-    mm::HEAP_ALLOCATOR,
+    mm::{
+        BUDDY_ALLOCATOR, PAGE_SIZE,
+        address::{PhysAddr, PhysPageNum},
+        buddy::{phys_to_virt, virt_to_phys},
+    },
     polling_println, println,
     task::{
         SCHEDULER,
@@ -23,6 +27,7 @@ use core::{
     arch::asm,
     cmp::Reverse,
     mem::transmute,
+    num::NonZeroUsize,
     ptr::NonNull,
 };
 
@@ -91,11 +96,24 @@ impl Scheduler {
             .position(|item| item.is_none())
             .map_or(self.task_list.len(), |pos| pos);
 
-        let layout = Layout::from_size_align(stack_size, 16)?;
-        let raw_ptr = unsafe { HEAP_ALLOCATOR.alloc(layout) }; // 起始地址
-        let stack_ptr = NonNull::new(raw_ptr).ok_or(SchedulerError::MemoryAllocationError)?;
-        let stack_base = stack_ptr.as_ptr() as usize;
-        let stack_top = (stack_base + stack_size) & !0xF; // 栈顶（高地址，对齐）
+        let pages = (stack_size + PAGE_SIZE - 1) / PAGE_SIZE;
+        let non_zero_pages =
+            NonZeroUsize::new(pages).ok_or(SchedulerError::MemoryAllocationError)?;
+        let stack_ppn = BUDDY_ALLOCATOR
+            .lock()
+            .alloc(non_zero_pages)
+            .ok_or(SchedulerError::MemoryAllocationError)?;
+        // 转换成虚拟地址
+        let stack_base_pa = PhysAddr::from(&stack_ppn).0;
+        let stack_base_va = phys_to_virt(stack_base_pa);
+        let stack_top = stack_base_va + pages * PAGE_SIZE;
+
+        let stack_ptr = NonNull::new(stack_base_va as *mut u8).unwrap();
+        // let layout = Layout::from_size_align(stack_size, 16)?;
+        // let raw_ptr = unsafe { HEAP_ALLOCATOR.alloc(layout) }; // 起始地址
+        // let stack_ptr = NonNull::new(raw_ptr).ok_or(SchedulerError::MemoryAllocationError)?;
+        // let stack_base = stack_ptr.as_ptr() as usize;
+        // let stack_top = (stack_base + stack_size) & !0xF; // 栈顶（高地址，对齐）
 
         let task_box: Box<dyn FnOnce() + Send> = Box::new(task);
         let raw_fat_ptr = Box::into_raw(task_box);
@@ -105,7 +123,6 @@ impl Scheduler {
         let (data_ptr, vtable_ptr): (usize, usize) = unsafe { transmute(raw_fat_ptr) };
 
         let mut task_context = TaskContext::zero();
-        //对齐到16字节
         task_context.sp = stack_top;
         task_context.ra = trampoline as usize;
         task_context.a0 = data_ptr;
@@ -116,7 +133,7 @@ impl Scheduler {
         let tcb = TaskControlBlock {
             task_id,
             stack_base: stack_ptr,
-            layout,
+            page_count: pages,
             entry_point: (data_ptr, vtable_ptr),
             priority,
             status: TaskStatus::Ready,
@@ -238,7 +255,13 @@ impl Scheduler {
                 if let Some(slot) = self.task_list.get_mut(zombie_id) {
                     if let Some(tcb) = slot.take() {
                         unsafe {
-                            HEAP_ALLOCATOR.dealloc(tcb.stack_base.as_ptr(), tcb.layout);
+                            let stack_va = tcb.stack_base.as_ptr() as usize;
+                            let stack_pa = PhysAddr(virt_to_phys(stack_va));
+                            let stack_ppn = PhysPageNum::from(stack_pa);
+                            BUDDY_ALLOCATOR
+                                .lock()
+                                .dealloc(stack_ppn, NonZeroUsize::new(tcb.page_count).unwrap());
+                            // HEAP_ALLOCATOR.dealloc(tcb.stack_base.as_ptr(), tcb.layout);
                         }
                     }
                 }
