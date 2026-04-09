@@ -8,6 +8,7 @@ pub mod pagetable;
 pub mod slub;
 
 use crate::config::PHYS_VIRT_OFFSET;
+use crate::console::{early_print_hex, early_print_str, early_println};
 use crate::data_struct::sync_ref_cell::SyncRefCell;
 use crate::mm::address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
 use crate::mm::buddy::{phys_to_virt, virt_to_phys};
@@ -113,35 +114,46 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
     MEMBLOCK
         .lock()
         .init_add_memory(PhysAddr(ram_base), ram_size);
-    // polling_println!("Memblock init: raw_ram -> {:#x}..{:#x}", ram_base, ram_end);
+
+    early_print_str("Memblock init: raw_ram ->");
+    early_print_hex(ram_base);
+    early_print_str("..");
+    early_print_hex(ram_end);
+    early_println();
 
     // 在 Memblock 中把内核占用的物理内存抠掉
     MEMBLOCK
         .lock()
         .reserve_memory(PhysAddr(skernel), ekernel - skernel);
-    // polling_println!("Memblock reserve: kernel -> {:#x}..{:#x}", skernel, ekernel);
+
+    early_print_str("Memblock reserve: kernel ->");
+    early_print_hex(skernel);
+    early_print_str("..");
+    early_print_hex(ekernel);
+    early_println();
 
     // 处理头部旧标准的保留内存声明
     for reserved in fdt.memory_reservations() {
         MEMBLOCK
             .lock()
             .reserve_memory(PhysAddr(reserved.address() as usize), reserved.size());
-        // polling_println!(
-        //     "Memblock reserve: reserve_memory -> {:#x}..{:#x}",
-        //     reserved.address() as usize,
-        //     reserved.size() + reserved.size()
-        // );
+
+        early_print_str("Memblock reserve: reserve_memory ->");
+        early_print_hex(reserved.address() as usize);
+        early_print_str("..");
+        early_print_hex(reserved.address() as usize + reserved.size());
+        early_println();
     }
 
     // 在 Memblock 抠除 DTB 数据本身的占用
     MEMBLOCK
         .lock()
         .reserve_memory(PhysAddr(dtb_addr), fdt.total_size());
-    // polling_println!(
-    //     "Memblock reserve: dtb -> {:#x}..{:#x}",
-    //     dtb_addr,
-    //     fdt.total_size() + dtb_addr
-    // );
+    early_print_str("Memblock reserve: dtb ->");
+    early_print_hex(dtb_addr);
+    early_print_str("..");
+    early_print_hex(dtb_addr + fdt.total_size());
+    early_println();
 
     // 申请根页表 (此时 Memblock 已经有内存了，可以安心申请)
     let root_pa = MEMBLOCK
@@ -169,11 +181,11 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
                     if base >= ram_base && end <= ram_end {
                         // 落在 RAM 里的区间,这是固件保留区 (比如 SBI)
                         MEMBLOCK.lock().reserve_memory(PhysAddr(base), size);
-                        // polling_println!(
-                        //     "Memblock reserve: reserve_memory -> {:#x}..{:#x}",
-                        //     base,
-                        //     base + size
-                        // );
+                        early_print_str("Memblock reserve: reserve_memory ->");
+                        early_print_hex(base);
+                        early_print_str("..");
+                        early_print_hex(base + size);
+                        early_println();
                     } else {
                         map_segment(
                             base,
@@ -182,7 +194,13 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
                             BootMapType::Linear,
                             MapAction::Map(PTEFlags::R | PTEFlags::W),
                         );
-                        // polling_println!("Mapped MMIO: {} -> {:#x}..{:#x}", node.name, base, end);
+                        early_print_str("Mapped MMIO: ");
+                        early_print_str(node.name);
+                        early_print_str(" ->");
+                        early_print_hex(base);
+                        early_print_str("..");
+                        early_print_hex(end);
+                        early_println();
                     }
                 }
             }
@@ -203,7 +221,12 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         BootMapType::Identical,
         MapAction::Map(PTEFlags::R | PTEFlags::X),
     );
-    // polling_println!("Mapped text -> {:#x}..{:#x}", stext, etext);
+    early_print_str("Mapped text ->");
+    early_print_hex(stext);
+    early_print_str("..");
+    early_print_hex(etext);
+    early_println();
+
     map_segment(
         srodata,
         erodata,
@@ -218,7 +241,12 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         BootMapType::Identical,
         MapAction::Map(PTEFlags::R),
     );
-    // polling_println!("Mapped rodata -> {:#x}..{:#x}", srodata, erodata);
+    early_print_str("Mapped rodata ->");
+    early_print_hex(srodata);
+    early_print_str("..");
+    early_print_hex(erodata);
+    early_println();
+
     map_segment(
         sdata,
         edata,
@@ -233,7 +261,12 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         BootMapType::Identical,
         MapAction::Map(PTEFlags::R | PTEFlags::W),
     );
-    // polling_println!("Mapped data -> {:#x}..{:#x}", sdata, edata);
+    early_print_str("Mapped data ->");
+    early_print_hex(sdata);
+    early_print_str("..");
+    early_print_hex(edata);
+    early_println();
+
     map_segment(
         sbss_with_stack,
         ebss,
@@ -248,7 +281,11 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         BootMapType::Identical,
         MapAction::Map(PTEFlags::R | PTEFlags::W),
     );
-    // polling_println!("Mapped bss -> {:#x}..{:#x}", sbss_with_stack, ebss);
+    early_print_str("Mapped bss ->");
+    early_print_hex(sbss_with_stack);
+    early_print_str("..");
+    early_print_hex(ebss);
+    early_println();
 
     // 内核终点到物理内存终点
     let ram_start_after_kernel = align_up(ekernel, PAGE_SIZE);
@@ -259,11 +296,11 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         BootMapType::Linear,
         MapAction::Map(PTEFlags::R | PTEFlags::W),
     );
-    // polling_println!(
-    //     "Mapped kernel -> {:#x}..{:#x}",
-    //     ram_start_after_kernel,
-    //     ram_end
-    // );
+    early_print_str("Mapped kernel ->");
+    early_print_hex(ram_start_after_kernel);
+    early_print_str("..");
+    early_print_hex(ram_end);
+    early_println();
 
     map_segment(
         ram_base,
@@ -272,11 +309,11 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         BootMapType::Linear,
         MapAction::Map(PTEFlags::R | PTEFlags::W),
     );
-    // polling_println!(
-    //     "Mapped RAM before kernel -> {:#x}..{:#x}",
-    //     ram_base,
-    //     skernel
-    // );
+    early_print_str("Mapped RAM before kernel ->");
+    early_print_hex(ram_base);
+    early_print_str("..");
+    early_print_hex(skernel);
+    early_println();
 
     // 设置内核根页表的PPN
     *BOOT_ROOT_PPN.borrow_mut() = PhysPageNum::from(root_pa);
@@ -294,11 +331,11 @@ pub fn setup_memory_and_mapping(dtb_addr: usize) {
         .early_alloc(mem_map_pages * PAGE_SIZE, PAGE_SIZE)
         .expect("Failed to allocate physical memory for mem_map array");
 
-    // polling_println!(
-    //     "Allocated mem_map array: {} pages at PA {:#x}",
-    //     mem_map_pages,
-    //     mem_map_pa.0
-    // );
+    early_print_str("Allocated mem_map array: ");
+    early_print_hex(mem_map_pages);
+    early_print_str(" pages at PA ");
+    early_print_hex(mem_map_pa.0);
+    early_println();
 
     unsafe {
         RAM_START_PPN = ram_start_ppn;
@@ -381,7 +418,6 @@ pub static BUDDY_ALLOCATOR: LockedBuddyAllocator = SpinMutex::new(BuddySystemFra
 pub fn init_buddy_system() {
     let ram_start = unsafe { RAM_START_PPN };
     let ram_end = unsafe { RAM_END_PPN };
-    // sbi_println!("ram_start_ppn:{:#X},ram_end_ppn{:#X}", ram_start, ram_end);
     let total_pages = ram_end - ram_start;
     let mem_map_pa = unsafe { MEM_MAP_PA };
     let mem_map_va = phys_to_virt(mem_map_pa.0);
@@ -427,11 +463,11 @@ pub fn init_buddy_system() {
             buddy.add_free_region(start_ppn, end_ppn);
         }
     }
-    // sbi_println!(
-    //     "Handover Complete: {} total pages mapped. {} pages handed to Buddy.",
-    //     total_pages,
-    //     free_pages_count
-    // );
+    sbi_println!(
+        "Handover Complete: {} total pages mapped. {} pages handed to Buddy.",
+        total_pages,
+        free_pages_count
+    );
 }
 
 pub fn enable_virtual_memory() {

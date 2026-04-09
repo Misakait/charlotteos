@@ -44,11 +44,11 @@ impl BuddySystemFrameAllocator {
 
         let mut current_ppn = align_start_ppn;
         // sbi_println!("Adding new region");
-        // sbi_println!(
-        //     "  -> Heap start: 0x{:x}, end: 0x{:x}",
-        //     PhysAddr::from(&PhysPageNum::from(align_start_ppn)).0,
-        //     PhysAddr::from(&PhysPageNum::from(align_end_ppn)).0
-        // );
+        sbi_println!(
+            "  -> Heap start: 0x{:x}, end: 0x{:x}",
+            PhysAddr::from(&PhysPageNum::from(align_start_ppn)).0,
+            PhysAddr::from(&PhysPageNum::from(align_end_ppn)).0
+        );
         while current_ppn < align_end_ppn {
             let remaining_pages = align_end_ppn - current_ppn;
             if remaining_pages == 0 {
@@ -71,14 +71,14 @@ impl BuddySystemFrameAllocator {
             unsafe {
                 self.add_free_block(block_addr.0, order);
             }
-            // sbi_println!(
-            //     "  -> Added block at 0x{:x},end at 0x{:x} size 0x{:x} ({} KB, {}MB)",
-            //     block_addr.0,
-            //     block_addr.0 + block_size,
-            //     block_size,
-            //     block_size / 1024,
-            //     block_size / 1024 / 1024
-            // );
+            sbi_println!(
+                "  -> Added block at 0x{:x},end at 0x{:x} size 0x{:x} ({} KB, {}MB)",
+                block_addr.0,
+                block_addr.0 + block_size,
+                block_size,
+                block_size / 1024,
+                block_size / 1024 / 1024
+            );
             current_ppn += block_pages;
         }
     }

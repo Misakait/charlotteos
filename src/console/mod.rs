@@ -116,3 +116,44 @@ macro_rules! sbi_println {
         $crate::sbi_print!("{}\n", format_args!($($arg)*))
     };
 }
+
+pub fn early_print_str(s: &str) {
+    for b in s.bytes() {
+        #[allow(deprecated)]
+        sbi_rt::legacy::console_putchar(b as usize);
+    }
+}
+
+pub fn early_print_hex(mut val: usize) {
+    early_print_str("0x");
+    if val == 0 {
+        early_print_str("0");
+        return;
+    }
+
+    // 64 位机器，十六进制最多 16 个字符
+    let mut buf = [0u8; 16];
+    let mut i = 16;
+
+    while val > 0 {
+        i -= 1;
+        let digit = (val & 0xF) as u8;
+        // 转换为 ASCII 码
+        buf[i] = if digit < 10 {
+            b'0' + digit
+        } else {
+            b'a' + digit - 10
+        };
+        val >>= 4;
+    }
+
+    // 将栈上的字符依次打印出来
+    for &b in &buf[i..] {
+        #[allow(deprecated)]
+        sbi_rt::legacy::console_putchar(b as usize);
+    }
+}
+
+pub fn early_println() {
+    early_print_str("\n");
+}
