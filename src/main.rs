@@ -21,7 +21,8 @@ use crate::mm::buddy::{phys_to_virt, virt_to_phys};
 use alloc::vec::Vec;
 
 use crate::mm::{
-    enable_virtual_memory, init_buddy_system, setup_memory_and_mapping, unmap_temp_identity_area,
+    enable_early_mmu, enable_virtual_memory, init_buddy_system, setup_memory_and_mapping,
+    unmap_temp_identity_area,
 };
 use crate::task::SCHEDULER;
 use crate::task::context::TaskContext;
@@ -53,15 +54,30 @@ static mut KERNEL_INIT_CONTEXT: TaskContext = TaskContext::zero();
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_main(hart_id: usize, dtb_addr: usize) {
+    // core::arch::asm!("csrs sstatus, {0}", in(reg) 1 << 13);
     // 清空 BSS 段的工作在汇编完成
     // clear_bss();
-    setup_memory_and_mapping(dtb_addr);
-    enable_virtual_memory();
+    unsafe {
+        enable_early_mmu();
 
-    unreachable!();
+        let next_fn_virt_addr = phys_to_virt(virt_rust_main as fn(usize) as *const () as usize);
+
+        core::arch::asm!(
+            "add sp, sp, {offset}",
+            "add s0, s0, {offset}",
+            "jr {target}",
+            offset = in(reg) PHYS_VIRT_OFFSET,
+            target = in(reg) next_fn_virt_addr,
+            in("a0") dtb_addr,
+            options(noreturn)
+        );
+    }
+    // unreachable!();
 }
 
-fn virt_rust_main() {
+fn virt_rust_main(dtb_addr: usize) {
+    setup_memory_and_mapping(dtb_addr);
+    enable_virtual_memory();
     unmap_temp_identity_area();
     init_buddy_system();
     sbi_println!("Buddy System Allocator initialized");

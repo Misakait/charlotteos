@@ -81,20 +81,90 @@ pub fn get_page_state(ppn: PhysPageNum) -> &'static mut Page {
         &mut MEM_MAP[idx]
     }
 }
+
+#[repr(C, align(4096))]
+pub struct EarlyPageTable([u64; 512]);
+
+static mut BOOT_PT: EarlyPageTable = EarlyPageTable([0; 512]);
+pub unsafe fn enable_early_mmu() {
+    const PTE_FLAGS_OFFSET: usize = 10; // PTE 结构中，PPN 开始的位置
+    const L2_INDEX_SHIFT: usize = 30; // Sv39 的 L2 索引在虚拟地址的 [38:30] 位
+    const L2_INDEX_MASK: usize = (1 << 9) - 1; // 索引的掩码，长度为 9 位 (511)
+
+    const PHY_BASE: usize = 0x8000_0000; // 物理内存基址
+    const VIRT_BASE: usize = PHYS_VIRT_OFFSET + PHY_BASE; // 高半区虚拟内存基址
+
+    // ==========================================
+    // 1. 获取静态根页表 (BOOT_PT) 的物理地址
+    // ==========================================
+    // 由于此时 PC 还在物理地址（低半区），但符号的虚拟地址被链接到了高半区
+    // 我们必须暴力截断掉高位，获取真实的物理内存地址
+    let pt_pa = (&raw const BOOT_PT as usize) & 0xFFFF_FFFF;
+    let pt_ptr = pt_pa as *mut u64;
+
+    // ==========================================
+    // 2. 使用 bitflags 构造 PTE 权限标志位
+    // ==========================================
+    // 对于早期启动，我们直接给大页放行最高权限，并提前设置 A/D 位避免 Page Fault
+    let flags = PTEFlags::V   // 有效位
+              | PTEFlags::R   // 读
+              | PTEFlags::W   // 写
+              | PTEFlags::X   // 执行
+              | PTEFlags::A   // Accessed (已访问)
+              | PTEFlags::D; // Dirty (已修改)
+
+    // ==========================================
+    // 3. 计算 1GB 内存超级大页的 PPN (物理页号)
+    // ==========================================
+    // 把 0x8000_0000 右移 12 位，得到 PPN
+    let ppn = PHY_BASE >> PAGE_SIZE_BITS;
+
+    // ==========================================
+    // 4. 组装最终的 PTE (Page Table Entry)
+    // ==========================================
+    // 格式：[ 保留位 | PPN [53:10] | 标志位 Flags [9:0] ]
+    let pte = ((ppn << PTE_FLAGS_OFFSET) as u64) | (flags.bits() as u64);
+
+    // ==========================================
+    // 5. 计算 L2 页表的索引，并写入 PTE
+    // ==========================================
+    // (a) 恒等映射的索引 (Identity Mapping)
+    // 保证刚开启 MMU 且 PC 还没跳转到高半区时，下一条指令依然能正确取指
+    let ident_idx = (PHY_BASE >> L2_INDEX_SHIFT) & L2_INDEX_MASK;
+    pt_ptr.add(ident_idx).write(pte); // 原来硬编码的 pt_ptr.add(2)
+
+    // (b) 高半区映射的索引 (Higher-Half Mapping)
+    // 供开启 MMU 并跳转后，内核正常使用 0xffffffff80000000 以上的地址
+    let higher_half_idx = (VIRT_BASE >> L2_INDEX_SHIFT) & L2_INDEX_MASK;
+    pt_ptr.add(higher_half_idx).write(pte); // 原来硬编码的 pt_ptr.add(510)
+
+    // ==========================================
+    // 6. 构造 satp 寄存器并开启虚拟内存
+    // ==========================================
+    let mut satp = Satp::from_bits(0);
+    satp.set_mode(Mode::Sv39);
+    satp.set_asid(0);
+    satp.set_ppn(pt_pa >> PAGE_SIZE_BITS);
+    unsafe {
+        satp::write(satp);
+        asm!("sfence.vma");
+    }
+}
+
 static BOOT_ROOT_PPN: SyncRefCell<PhysPageNum> = unsafe { SyncRefCell::new(PhysPageNum(0)) };
 
 pub fn setup_memory_and_mapping(dtb_addr: usize) {
     // 这些链接脚本提供的也是物理上的
-    let stext = unsafe { &_text_start as *const _ as usize };
-    let etext = unsafe { &_text_end as *const _ as usize };
-    let srodata = unsafe { &_rodata_start as *const _ as usize };
-    let erodata = unsafe { &_rodata_end as *const _ as usize };
-    let sdata = unsafe { &_data_start as *const _ as usize };
-    let edata = unsafe { &_data_end as *const _ as usize };
-    let sbss_with_stack = unsafe { &_bss_start_with_stack as *const _ as usize };
-    let ebss = unsafe { &_bss_end as *const _ as usize };
-    let skernel = unsafe { &_skernel as *const _ as usize };
-    let ekernel = unsafe { &_ekernel as *const _ as usize };
+    let stext = virt_to_phys(unsafe { &_text_start as *const _ as usize });
+    let etext = virt_to_phys(unsafe { &_text_end as *const _ as usize });
+    let srodata = virt_to_phys(unsafe { &_rodata_start as *const _ as usize });
+    let erodata = virt_to_phys(unsafe { &_rodata_end as *const _ as usize });
+    let sdata = virt_to_phys(unsafe { &_data_start as *const _ as usize });
+    let edata = virt_to_phys(unsafe { &_data_end as *const _ as usize });
+    let sbss_with_stack = virt_to_phys(unsafe { &_bss_start_with_stack as *const _ as usize });
+    let ebss = virt_to_phys(unsafe { &_bss_end as *const _ as usize });
+    let skernel = virt_to_phys(unsafe { &_skernel as *const _ as usize });
+    let ekernel = virt_to_phys(unsafe { &_ekernel as *const _ as usize });
 
     let fdt = unsafe { Fdt::from_ptr(dtb_addr as *const u8).unwrap() };
 
@@ -482,17 +552,17 @@ pub fn enable_virtual_memory() {
         asm!("sfence.vma");
     }
     // 函数地址依旧是物理实际上的
-    let next_fn_virt_addr = phys_to_virt(virt_rust_main as fn() as *const () as usize);
-    unsafe {
-        core::arch::asm!(
-            "add sp, sp, {offset}",
-            "add s0, s0, {offset}",
-            "jr {target}",
-            offset = in(reg) PHYS_VIRT_OFFSET,
-            target = in(reg) next_fn_virt_addr,
-            options(noreturn)
-        );
-    }
+    // let next_fn_virt_addr = phys_to_virt(virt_rust_main as fn(usize) as *const () as usize);
+    // unsafe {
+    //     core::arch::asm!(
+    //         "add sp, sp, {offset}",
+    //         "add s0, s0, {offset}",
+    //         "jr {target}",
+    //         offset = in(reg) PHYS_VIRT_OFFSET,
+    //         target = in(reg) next_fn_virt_addr,
+    //         options(noreturn)
+    //     );
+    // }
 }
 
 pub fn unmap_temp_identity_area() {
