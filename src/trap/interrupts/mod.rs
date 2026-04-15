@@ -27,28 +27,29 @@ impl InterruptCause {
 pub unsafe fn init_supervisor_interrupts() {
     unsafe {
         // 使能 S 模式时钟中断
-        asm!(
-        // 使用 csrrs (Read and Set) 指令
-        // 它会将 sie 的值与我们传入的寄存器值进行 OR 操作
-        // 第一个操作数 `_` 表示我们不关心 sie 的旧值，所以把它丢弃
-        "csrrs {0}, sie, {1}",
-        out(reg) _,             // 对应 {0}
-        in(reg) SIE_STIE_MASK,  // 对应 {1}，编译器会自动将 SIE_STIE_MASK 放入一个寄存器
-        );
-
+        // asm!(
+        // // 使用 csrrs (Read and Set) 指令
+        // // 它会将 sie 的值与我们传入的寄存器值进行 OR 操作
+        // // 第一个操作数 `_` 表示我们不关心 sie 的旧值，所以把它丢弃
+        // "csrrs {0}, sie, {1}",
+        // out(reg) _,             // 对应 {0}
+        // in(reg) SIE_STIE_MASK,  // 对应 {1}，编译器会自动将 SIE_STIE_MASK 放入一个寄存器
+        // );
+        riscv::register::sie::set_stimer();
         // 使能 S 模式外部中断
-        asm!(
-        // 使用 csrrs (Read and Set) 指令
-        // 它会将 sie 的值与我们传入的寄存器值进行 OR 操作
-        // 第一个操作数 `_` 表示我们不关心 sie 的旧值，所以把它丢弃
-        "csrrs {0}, sie, {1}",
-        out(reg) _,             // 对应 {0}
-        in(reg) SIE_SEIE_MASK,  // 对应 {1}，编译器会自动将 SIE_SEIE_MASK 放入一个寄存器
-        );
-
+        // asm!(
+        // // 使用 csrrs (Read and Set) 指令
+        // // 它会将 sie 的值与我们传入的寄存器值进行 OR 操作
+        // // 第一个操作数 `_` 表示我们不关心 sie 的旧值，所以把它丢弃
+        // "csrrs {0}, sie, {1}",
+        // out(reg) _,             // 对应 {0}
+        // in(reg) SIE_SEIE_MASK,  // 对应 {1}，编译器会自动将 SIE_SEIE_MASK 放入一个寄存器
+        // );
+        riscv::register::sie::set_sext();
         // 开启 S 模式下的中断总开关 (sstatus.SIE)
         // 此处的2为 1 << 1
         // asm!("csrsi sstatus, 2");
+        riscv::register::sstatus::set_sie();
     }
 }
 pub fn disable_supervisor_interrupts() {
