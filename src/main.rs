@@ -18,10 +18,10 @@ mod userlib;
 use crate::bsp::qemu_virt::UART_BASE;
 use crate::config::PHYS_VIRT_OFFSET;
 use crate::mm::buddy::{phys_to_virt, virt_to_phys};
-use alloc::vec::Vec;
+use alloc::vec;
 
 use crate::mm::{
-    enable_early_mmu, enable_virtual_memory, init_buddy_system, setup_memory_and_mapping,
+    enable_early_mmu, init_buddy_system, setup_memory_and_mapping, switch_to_final_page_table,
     unmap_temp_identity_area,
 };
 use crate::task::SCHEDULER;
@@ -77,7 +77,7 @@ pub extern "C" fn rust_main(hart_id: usize, dtb_addr: usize) {
 
 fn virt_rust_main(dtb_addr: usize) {
     setup_memory_and_mapping(dtb_addr);
-    enable_virtual_memory();
+    switch_to_final_page_table();
     unmap_temp_identity_area();
     init_buddy_system();
     sbi_println!("Buddy System Allocator initialized");
@@ -92,7 +92,6 @@ fn virt_rust_main(dtb_addr: usize) {
     // 初始化调度器并创建 idle 任务
     let _ = Scheduler::init();
     sbi_println!("✓ Scheduler initialized with idle task");
-
     // 创建测试任务
     {
         let mut scheduler = SCHEDULER.lock();
@@ -113,7 +112,7 @@ fn virt_rust_main(dtb_addr: usize) {
         set_next_timer_tick();
         init_supervisor_interrupts();
     }
-
+    sbi_println!("haved set timer");
     // sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::NoReason);
     Scheduler::run_scheduler();
 
